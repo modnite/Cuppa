@@ -4,6 +4,11 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 
 ---
 
+### `v5.3.0` — September 11, 2026
+- **Restoration of IPP Network Server Initializer**: Fixed a bug where toggling the server ON bound the background service without instantiating `IppServer`, mDNS, or RAW 9100. Re-wired `startIppServer()` to inject `UsbPrintManager`, `JobQueueManager`, and global logging callbacks, restoring full driverless AirPrint discovery and network logs.
+- **Bottom Navigation Reordering**: Reordered the navigation bar to **Printers ➔ Jobs ➔ Log ➔ Admin**.
+- **"About Cuppa" Version Card**: Added a dedicated Material Card in the Admin tab displaying current app version (`v5.3.0`) and core system specifications.
+
 ### `v5.2.0` — September 11, 2026
 - **Test Print & Server Toggle Functional Wiring**: Completely removed all placeholder/stub code. Wired the "Test Page" button in the Printers Tab to instantly generate and queue a diagnostic CUPS label. Wired the Server Toggle to cleanly start/stop the `PrintServerService`.
 - **Global Logging Memory Buffer (Zero Lost Logs)**: Added a central `logBuffer` in `MainActivity`. Background USB and IPP Server components now permanently write to this buffer. The Log Tab reads this full history upon opening, eliminating the "empty log" bug caused by lazy fragment initialization.
@@ -44,6 +49,11 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 ### `v3.1.2` — September 6, 2026 at 8:30 AM
 - **PostScript Filter Bypass & Direct PDF Streaming**: Removed `application/postscript` from IPP `documentFormatSupported` in `IppServer.kt` and mDNS `pdl` TXT record in `PrintServerService.kt`. Forces macOS, Linux, and Windows clients to bypass PostScript CUPS filters (`cgpdftops`) and stream raw PDF documents (`srcdoc.pdf`) directly over IPP without filter text boxes.
 - **Enhanced PostScript Text & Metadata Extraction**: Updated `createPdfFromText` in `IppServer.kt` to extract all PostScript document string calls (`(...) show`, `(...) Tj`, `(...) TJ`) and render actual document content onto 4x6 label canvases whenever PostScript streams are submitted.
+
+### `v5.3.0` — September 11, 2026
+- **Restoration of IPP Network Server Initializer**: Fixed a bug where toggling the server ON bound the background service without instantiating `IppServer`, mDNS, or RAW 9100. Re-wired `startIppServer()` to inject `UsbPrintManager`, `JobQueueManager`, and global logging callbacks, restoring full driverless AirPrint discovery and network logs.
+- **Bottom Navigation Reordering**: Reordered the navigation bar to **Printers ➔ Jobs ➔ Log ➔ Admin**.
+- **"About Cuppa" Version Card**: Added a dedicated Material Card in the Admin tab displaying current app version (`v5.3.0`) and core system specifications.
 
 ### `v5.2.0` — September 11, 2026
 - **Test Print & Server Toggle Functional Wiring**: Completely removed all placeholder/stub code. Wired the "Test Page" button in the Printers Tab to instantly generate and queue a diagnostic CUPS label. Wired the Server Toggle to cleanly start/stop the `PrintServerService`.

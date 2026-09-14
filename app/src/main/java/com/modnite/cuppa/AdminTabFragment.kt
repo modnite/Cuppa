@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
@@ -37,6 +38,7 @@ class AdminTabFragment : Fragment() {
         switchRawPort9100.isChecked = rawPort9100
 
         switchServer.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("PREF_SERVER_RUNNING", isChecked).apply()
             if (isChecked) {
                 (activity as? MainActivity)?.startIppServer()
             } else {
@@ -78,6 +80,13 @@ class AdminTabFragment : Fragment() {
             })
             updateManager.checkForUpdates(false)
         }
+
+        val tvAboutVersion = view.findViewById<TextView>(R.id.tvAboutVersion)
+        var verName = "5.3.0"
+        try {
+            verName = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0).versionName ?: "5.3.0"
+        } catch (_: Exception) {}
+        tvAboutVersion?.text = "Version: v$verName"
 
         return view
     }

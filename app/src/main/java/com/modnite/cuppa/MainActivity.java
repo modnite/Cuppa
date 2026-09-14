@@ -85,7 +85,11 @@ public class MainActivity extends AppCompatActivity {
             PrintServerService.LocalBinder binder = (PrintServerService.LocalBinder) service;
             printServerService = binder.getService();
             isServiceBound = true;
-            // Let the Admin tab handle whether it should be started
+
+            boolean shouldRun = prefs.getBoolean("PREF_SERVER_RUNNING", true);
+            if (shouldRun) {
+                startIppServer();
+            }
         }
 
         @Override
@@ -219,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         ContextCompat.registerReceiver(this, usbReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
 
-        String appVersion = "5.2.0";
+        String appVersion = "5.3.0";
         try {
             appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
         } catch (Exception e) {}
@@ -256,7 +260,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void startIppServer() {
-        if (isServiceBound && printServerService != null) return;
+        if (isServiceBound && printServerService != null) {
+            printServerService.initializeServer(
+                    printManager,
+                    jobQueueManager,
+                    text -> {
+                        log(text);
+                        return null;
+                    },
+                    (running, ip) -> {
+                        return null;
+                    },
+                    null
+            );
+            return;
+        }
         Intent intent = new Intent(this, PrintServerService.class);
         intent.setAction(PrintServerService.ACTION_START);
         try {
