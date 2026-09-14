@@ -239,20 +239,12 @@
                     android:text="@string/run_hardware_check" />
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnExportCache"
+                    android:id="@+id/btnViewCache"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="@string/export_cache_zip" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnClearCache"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/clear_cache" />
+                    android:text="View Print Cache" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCheckUpdates"

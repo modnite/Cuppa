@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.content.Context
 import android.graphics.Bitmap

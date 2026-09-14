@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.content.Context
 import android.content.Intent
@@ -58,28 +58,10 @@ class AdminTabFragment : Fragment() {
             (activity as? MainActivity)?.printManager?.runPrinterDiagnosticsAsync()
         }
 
-        val btnExportCache = view.findViewById<Button>(R.id.btnExportCache)
-        btnExportCache.setOnClickListener {
-            val zipFile = PrintHistoryCacheManager.exportCacheZip(requireContext())
-            if (zipFile != null && zipFile.exists()) {
-                val contentUri = FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.fileprovider", zipFile)
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/zip"
-                    putExtra(Intent.EXTRA_STREAM, contentUri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                startActivity(Intent.createChooser(shareIntent, "Share Print Cache ZIP"))
-            } else {
-                Toast.makeText(requireContext(), R.string.no_cached_screenshots, Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        val btnClearCache = view.findViewById<Button>(R.id.btnClearCache)
-        btnClearCache.setOnClickListener {
-            val cleared = PrintHistoryCacheManager.clearCache(requireContext())
-            if (cleared) {
-                Toast.makeText(requireContext(), R.string.cache_cleared, Toast.LENGTH_SHORT).show()
-            }
+        val btnViewCache = view.findViewById<Button>(R.id.btnViewCache)
+        btnViewCache.setOnClickListener {
+            val galleryDialog = PrintCacheGalleryDialogFragment.newInstance()
+            galleryDialog.show(parentFragmentManager, "PrintCacheGallery")
         }
 
         val btnCheckUpdates = view.findViewById<Button>(R.id.btnCheckUpdates)

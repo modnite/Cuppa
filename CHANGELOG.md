@@ -4,6 +4,13 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 
 ---
 
+### `v5.1.0` — September 11, 2026
+- **Deep Package Rebrand & Directory Migration (`com.modnite.cuppa`)**: Completely migrated the core Android package ID, namespace, and directory structures from `com.example.rolloprint` to `com.modnite.cuppa`. Cuppa is now a distinct, standalone application.
+- **Authentic CUPS Job Controls**: Purged the legacy "Print All" and "Clear Queue" actions. The Jobs Tab now exclusively manages jobs using standard CUPS operations: **Hold**, **Release**, **Cancel**, and **Reprint**.
+- **Flawless UI Layouts (No Wrapping)**: Rebuilt list items and controls using highly constrained layouts. Elements now truncate gracefully (`ellipsize="end"`) instead of wrapping to a second line or breaking vertical constraints in Portrait/Landscape/DeX modes.
+- **Native Local Log Saving**: Completely stripped out Etherpad/Pastebin log-dumping. Implemented Android's native Storage Access Framework (SAF), allowing you to choose exactly which local folder to save `cuppa_server_log.txt` via a "Save Log As..." button.
+- **Diagnostic Test Print Generator**: Wired the "Test Page" button to generate a standard CUPS-style diagnostic label (containing server status, protocols, and interfaces) and inject it directly into the print queue.
+
 ### `v5.0.0` — September 11, 2026
 - **Global Project Rebranding (`Cuppa`)**: The application has been entirely rewritten and rebranded as **Cuppa** (formerly RolloPrint), accompanied by a brand new coffee cup application icon.
 - **100% Ground-Up UI/UX Overhaul (Tabbed CUPS WebUI Port)**: Completely nuked the old single-card layout. Cuppa now features a modern Material 3 Tabbed & Navigation Bar architecture mirroring the official OpenPrinting CUPS 2.4.x WebUI.
@@ -32,6 +39,13 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 ### `v3.1.2` — September 6, 2026 at 8:30 AM
 - **PostScript Filter Bypass & Direct PDF Streaming**: Removed `application/postscript` from IPP `documentFormatSupported` in `IppServer.kt` and mDNS `pdl` TXT record in `PrintServerService.kt`. Forces macOS, Linux, and Windows clients to bypass PostScript CUPS filters (`cgpdftops`) and stream raw PDF documents (`srcdoc.pdf`) directly over IPP without filter text boxes.
 - **Enhanced PostScript Text & Metadata Extraction**: Updated `createPdfFromText` in `IppServer.kt` to extract all PostScript document string calls (`(...) show`, `(...) Tj`, `(...) TJ`) and render actual document content onto 4x6 label canvases whenever PostScript streams are submitted.
+
+### `v5.1.0` — September 11, 2026
+- **Deep Package Rebrand & Directory Migration (`com.modnite.cuppa`)**: Completely migrated the core Android package ID, namespace, and directory structures from `com.example.rolloprint` to `com.modnite.cuppa`. Cuppa is now a distinct, standalone application.
+- **Authentic CUPS Job Controls**: Purged the legacy "Print All" and "Clear Queue" actions. The Jobs Tab now exclusively manages jobs using standard CUPS operations: **Hold**, **Release**, **Cancel**, and **Reprint**.
+- **Flawless UI Layouts (No Wrapping)**: Rebuilt list items and controls using highly constrained layouts. Elements now truncate gracefully (`ellipsize="end"`) instead of wrapping to a second line or breaking vertical constraints in Portrait/Landscape/DeX modes.
+- **Native Local Log Saving**: Completely stripped out Etherpad/Pastebin log-dumping. Implemented Android's native Storage Access Framework (SAF), allowing you to choose exactly which local folder to save `cuppa_server_log.txt` via a "Save Log As..." button.
+- **Diagnostic Test Print Generator**: Wired the "Test Page" button to generate a standard CUPS-style diagnostic label (containing server status, protocols, and interfaces) and inject it directly into the print queue.
 
 ### `v5.0.0` — September 11, 2026
 - **Global Project Rebranding (`Cuppa`)**: The application has been entirely rewritten and rebranded as **Cuppa** (formerly RolloPrint), accompanied by a brand new coffee cup application icon.

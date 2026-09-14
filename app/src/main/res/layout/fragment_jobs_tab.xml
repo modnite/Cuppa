@@ -33,7 +33,6 @@
             app:tint="?attr/colorOnSurface" />
     </LinearLayout>
 
-    <!-- Empty Queue Placeholder -->
     <TextView
         android:id="@+id/tvEmptyQueuePlaceholder"
         android:layout_width="match_parent"
@@ -44,7 +43,6 @@
         android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone" />
 
-    <!-- RecyclerView for Jobs -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvQueueJobs"
         android:layout_width="match_parent"
@@ -53,38 +51,5 @@
         android:scrollbars="vertical"
         android:clipToPadding="false"
         android:paddingVertical="4dp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginTop="16dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPrintAllQueue"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:insetLeft="0dp"
-            android:insetRight="0dp"
-            android:paddingHorizontal="2dp"
-            android:textSize="12sp"
-            android:text="@string/print_all"
-            android:layout_marginEnd="6dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnClearAllQueue"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:insetLeft="0dp"
-            android:insetRight="0dp"
-            android:paddingHorizontal="2dp"
-            android:textSize="12sp"
-            android:text="@string/clear_all" />
-    </LinearLayout>
 
 </LinearLayout>

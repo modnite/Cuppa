@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import com.hp.jipp.model.PrinterState
 import java.util.concurrent.ConcurrentHashMap

@@ -1,4 +1,4 @@
-package com.example.rolloprint;
+package com.modnite.cuppa;
 
 import android.content.Intent;
 import android.content.SharedPreferences;

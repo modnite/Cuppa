@@ -24,13 +24,13 @@
             android:textStyle="bold" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnDumpLogs"
+            android:id="@+id/btnSaveLog"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingHorizontal="10dp"
             android:textSize="12sp"
-            android:text="@string/dump_to_pastebin" />
+            android:text="Save Log As..." />
     </LinearLayout>
 
     <ScrollView

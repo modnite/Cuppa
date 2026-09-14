@@ -1,15 +1,21 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
+import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.hardware.usb.*
 import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 
 enum class HardwareState {
@@ -452,6 +458,73 @@ class UsbPrintManager(private val context: Context, private val logger: (String)
                 }
             } finally {
                 connection.close()
+            }
+        }
+    }
+
+    fun printTestPage(jobQueueManager: JobQueueManager) {
+        executor.execute {
+            try {
+                val pdfDoc = PdfDocument()
+                val pageInfo = PdfDocument.PageInfo.Builder(TARGET_WIDTH, TARGET_HEIGHT, 1).create()
+                val page = pdfDoc.startPage(pageInfo)
+                val canvas = page.canvas
+
+                canvas.drawColor(Color.WHITE)
+
+                val paint = Paint().apply {
+                    color = Color.BLACK
+                    isAntiAlias = true
+                }
+
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 6f
+                canvas.drawRect(20f, 20f, TARGET_WIDTH - 20f, TARGET_HEIGHT - 20f, paint)
+
+                paint.style = Paint.Style.FILL
+                paint.textSize = 44f
+                paint.isFakeBoldText = true
+                canvas.drawText("Cuppa Diagnostic Test Page", 60f, 100f, paint)
+
+                paint.strokeWidth = 3f
+                canvas.drawLine(60f, 120f, TARGET_WIDTH - 60f, 120f, paint)
+
+                paint.textSize = 28f
+                paint.isFakeBoldText = false
+                var y = 180f
+
+                val hwStateStr = currentHardwareStates.joinToString(", ")
+                val details = listOf(
+                    "Printer: Rollo Thermal Printer 4x6",
+                    "CUPS Server: Cuppa for Android",
+                    "Protocols: AirPrint, IPP (8631), RAW (9100)",
+                    "Resolution: 203 DPI (832 x 1218 pixels)",
+                    "Hardware State: $hwStateStr",
+                    "Timestamp: " + SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                )
+
+                for (detail in details) {
+                    canvas.drawText(detail, 60f, y, paint)
+                    y += 48f
+                }
+
+                pdfDoc.finishPage(page)
+
+                val tempPdfFile = File(context.cacheDir, "temp_test_page.pdf")
+                FileOutputStream(tempPdfFile).use { pdfDoc.writeTo(it) }
+                pdfDoc.close()
+
+                val uri = Uri.fromFile(tempPdfFile)
+                val bitmap = renderPdfToBitmap(uri)
+                if (bitmap != null) {
+                    val jobId = JobQueueManager.getNextJobId()
+                    PrintHistoryCacheManager.saveJobScreenshot(context, bitmap, jobId, "local", "android")
+                    jobQueueManager.addJob(bitmap, "Test Page", false, jobId)
+                    logger("[Cuppa] Sent Diagnostic Test Page to Job Queue (Job #$jobId)")
+                }
+                tempPdfFile.delete()
+            } catch (e: Exception) {
+                logger("[Cuppa] ERROR generating Test Page: ${e.message}")
             }
         }
     }

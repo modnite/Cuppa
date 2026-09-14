@@ -34,8 +34,10 @@
 
             <TextView
                 android:id="@+id/tvCacheTitle"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="Job #101 [macos]"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
                 android:textColor="?attr/colorOnSurface"
@@ -43,8 +45,10 @@
 
             <TextView
                 android:id="@+id/tvCacheDetails"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="Origin: network | OS: macos"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
@@ -52,8 +56,10 @@
 
             <TextView
                 android:id="@+id/tvCacheTimestamp"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
                 android:text="2026-09-06 12:34:56"
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"

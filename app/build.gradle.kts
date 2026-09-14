@@ -3,15 +3,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.rolloprint"
+    namespace = "com.modnite.cuppa"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.rolloprint"
+        applicationId = "com.modnite.cuppa"
         minSdk = 24
         targetSdk = 37
-        versionCode = 111
-        versionName = "5.0.0"
+        versionCode = 113
+        versionName = "5.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,7 +61,7 @@ dependencies {
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
-            output.outputFileName.set("RolloPrint.apk")
+            output.outputFileName.set("Cuppa-v5.1.0.apk")
         }
     }
 }

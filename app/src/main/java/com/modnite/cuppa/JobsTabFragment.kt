@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -36,8 +36,6 @@ class JobsTabFragment : Fragment() {
         rvQueueJobs = view.findViewById(R.id.rvQueueJobs)
         tvEmptyQueuePlaceholder = view.findViewById(R.id.tvEmptyQueuePlaceholder)
         btnToggleSortOrder = view.findViewById(R.id.btnToggleSortOrder)
-        val btnPrintAllQueue = view.findViewById<MaterialButton>(R.id.btnPrintAllQueue)
-        val btnClearAllQueue = view.findViewById<MaterialButton>(R.id.btnClearAllQueue)
 
         rvQueueJobs.layoutManager = LinearLayoutManager(requireContext())
 
@@ -59,14 +57,6 @@ class JobsTabFragment : Fragment() {
             jobQueueManager?.let { refreshAdapter(it.getQueuedJobs()) }
         }
 
-        btnPrintAllQueue.setOnClickListener {
-            jobQueueManager?.printAllJobs()
-        }
-
-        btnClearAllQueue.setOnClickListener {
-            jobQueueManager?.clearQueue()
-        }
-
         jobQueueManager?.let { refreshAdapter(it.getQueuedJobs()) }
 
         return view
@@ -82,14 +72,14 @@ class JobsTabFragment : Fragment() {
             tvEmptyQueuePlaceholder.visibility = View.GONE
             rvQueueJobs.adapter = QueueAdapter(
                 displayJobs,
-                onPreview = { job ->
-                    // Handle Preview
+                onHold = { job ->
+                    jobQueueManager?.holdJob(job.id)
                 },
-                onPrintNow = { job ->
-                    jobQueueManager?.printJobManual(job.id)
+                onRelease = { job ->
+                    jobQueueManager?.releaseJob(job.id)
                 },
-                onDelete = { job ->
-                    jobQueueManager?.removeJob(job.id)
+                onCancel = { job ->
+                    jobQueueManager?.cancelJob(job.id)
                 }
             )
         }
@@ -102,17 +92,17 @@ class JobsTabFragment : Fragment() {
 
     private class QueueAdapter(
         private val jobs: List<JobQueueManager.PrintJob>,
-        private val onPreview: (JobQueueManager.PrintJob) -> Unit,
-        private val onPrintNow: (JobQueueManager.PrintJob) -> Unit,
-        private val onDelete: (JobQueueManager.PrintJob) -> Unit
+        private val onHold: (JobQueueManager.PrintJob) -> Unit,
+        private val onRelease: (JobQueueManager.PrintJob) -> Unit,
+        private val onCancel: (JobQueueManager.PrintJob) -> Unit
     ) : RecyclerView.Adapter<QueueAdapter.QueueViewHolder>() {
 
         class QueueViewHolder(view: View) : RecyclerView.ViewHolder(view) {
             val tvJobName: TextView = view.findViewById(R.id.tvJobName)
             val tvJobStatus: TextView = view.findViewById(R.id.tvJobStatus)
-            val btnItemPreview: MaterialButton = view.findViewById(R.id.btnItemPreview)
-            val btnItemPrint: MaterialButton = view.findViewById(R.id.btnItemPrint)
-            val btnItemDelete: MaterialButton = view.findViewById(R.id.btnItemDelete)
+            val btnItemHold: MaterialButton = view.findViewById(R.id.btnItemPreview) // using existing ID
+            val btnItemRelease: MaterialButton = view.findViewById(R.id.btnItemPrint)
+            val btnItemCancel: MaterialButton = view.findViewById(R.id.btnItemDelete)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): QueueViewHolder {
@@ -122,12 +112,12 @@ class JobsTabFragment : Fragment() {
 
         override fun onBindViewHolder(holder: QueueViewHolder, position: Int) {
             val job = jobs[position]
-            holder.tvJobName.text = "#${job.id} - ${job.name}"
+            holder.tvJobName.text = "Job #${job.id} - ${job.name}"
             holder.tvJobStatus.text = "Status: ${job.status.name}"
 
-            holder.btnItemPreview.setOnClickListener { onPreview(job) }
-            holder.btnItemPrint.setOnClickListener { onPrintNow(job) }
-            holder.btnItemDelete.setOnClickListener { onDelete(job) }
+            holder.btnItemHold.setOnClickListener { onHold(job) }
+            holder.btnItemRelease.setOnClickListener { onRelease(job) }
+            holder.btnItemCancel.setOnClickListener { onCancel(job) }
         }
 
         override fun getItemCount(): Int = jobs.size

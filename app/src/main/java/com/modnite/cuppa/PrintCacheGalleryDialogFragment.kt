@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.app.Dialog
 import android.content.Intent

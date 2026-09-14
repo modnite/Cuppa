@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.app.Notification
 import android.app.NotificationChannel

@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.graphics.Bitmap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -90,47 +90,42 @@ class JobQueueManager(
         }
     }
 
-    fun printAllJobs() {
+    // Print all jobs is purged for CUPS authenticity.
+
+    fun holdJob(jobId: Int) {
         synchronized(this) {
-            queue.forEach { job ->
-                if (job.status == JobStatus.HELD || job.status == JobStatus.FAILED) {
-                    job.status = JobStatus.PENDING
-                }
+            val job = queue.find { it.id == jobId }
+            if (job != null && job.status == JobStatus.PENDING) {
+                job.status = JobStatus.HELD
+                logger("[QUEUE] Job #${job.id} held manually.")
+                notifyQueueChanged()
             }
-            logger("[QUEUE] User triggered 'Print all' for ${queue.size} queued job(s)...")
-            notifyQueueChanged()
-            processNextJob()
         }
     }
 
-    fun printJobManual(jobId: Int) {
+    fun releaseJob(jobId: Int) {
         synchronized(this) {
             val job = queue.find { it.id == jobId }
-            if (job != null) {
+            if (job != null && (job.status == JobStatus.HELD || job.status == JobStatus.FAILED)) {
                 job.status = JobStatus.PENDING
-                logger("[QUEUE] User manually triggered job #${job.id} ('${job.name}')...")
+                logger("[QUEUE] Job #${job.id} released...")
                 notifyQueueChanged()
                 processNextJob()
             }
         }
     }
 
-    fun removeJob(jobId: Int) {
+    fun cancelJob(jobId: Int) {
         synchronized(this) {
-            queue.removeAll { it.id == jobId }
-            notifyQueueChanged()
-            logger("[QUEUE] Removed job #$jobId from queue. Remaining: ${queue.size}")
+            val removed = queue.removeAll { it.id == jobId }
+            if (removed) {
+                logger("[QUEUE] Cancelled job #$jobId.")
+                notifyQueueChanged()
+            }
         }
     }
 
-    fun clearQueue() {
-        synchronized(this) {
-            val count = queue.size
-            queue.clear()
-            notifyQueueChanged()
-            logger("[QUEUE] Cleared $count queued job(s) from print queue.")
-        }
-    }
+    // clearQueue is purged for CUPS authenticity.
 
     fun getQueuedJobs(): List<PrintJob> = queue.toList()
 

@@ -1,4 +1,4 @@
-package com.example.rolloprint
+package com.modnite.cuppa
 
 import android.os.Bundle
 import android.view.LayoutInflater
