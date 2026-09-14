@@ -105,21 +105,17 @@ class PrintServerService : Service() {
         }
         ippServer?.start()
 
+        if (rawSocketServer == null) {
+            rawSocketServer = RawSocketServer(this, usbPrintManager, jobQueueManager) { logMsg ->
+                loggerCallback?.invoke(logMsg)
+            }
+        }
+        rawSocketServer?.start()
+
         val activeIp = ippServer?.getLocalIpAddress() ?: "127.0.0.1"
         isServerRunning = true
         updateNotification("Active on $activeIp:$PORT")
         statusCallback?.invoke(true, activeIp)
-
-        val prefs = getSharedPreferences("rollo_prefs", MODE_PRIVATE)
-        val enableRawPort9100 = prefs.getBoolean("PREF_RAW_PORT_9100", true)
-        if (enableRawPort9100) {
-            if (rawSocketServer == null) {
-                rawSocketServer = RawSocketServer(this, usbPrintManager, jobQueueManager) { logMsg ->
-                    loggerCallback?.invoke(logMsg)
-                }
-            }
-            rawSocketServer?.start()
-        }
 
         registerNsdService { logMsg -> loggerCallback?.invoke(logMsg) }
     }

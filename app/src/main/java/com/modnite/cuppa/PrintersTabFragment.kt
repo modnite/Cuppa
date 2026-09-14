@@ -27,6 +27,12 @@ class PrintersTabFragment : Fragment() {
             }
         }
 
+        val btnAddPrinter = view.findViewById<MaterialButton>(R.id.btnAddPrinter)
+        btnAddPrinter.setOnClickListener {
+            val dialog = AddPrinterDialogFragment.newInstance()
+            dialog.show(parentFragmentManager, "AddPrinter")
+        }
+
         return view
     }
 

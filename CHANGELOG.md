@@ -4,6 +4,14 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 
 ---
 
+### `v5.5.0` — September 14, 2026
+- **Real-Time Jobs Tab Queue Refresh**: Re-bound `jobQueueManager.onQueueJobsChanged` in `JobsTabFragment.kt` so tapping Cancel, Hold, or Release refreshes the Jobs tab list in 0.01s without requiring tab switching.
+- **`FileProvider` Single JPEG Export Crash Fix**: Added `<files-path>` and `<cache-path>` rules to `res/xml/file_paths.xml` and wrapped URI resolution in `try-catch` blocks, preventing app process crashes when exporting single JPEG screenshots.
+- **Unified CUPS Engine Toggle**: Merged Port 9100 RAW Server into the main CUPS Engine switch so activating the CUPS Engine starts Port 8631 (IPP) and Port 9100 (RAW) simultaneously.
+- **Native "Add Printer" Discovery Dialog (`AddPrinterDialogFragment.kt`)**: Added a discovery dialog scanning connected USB devices (`UsbManager`) and local network ports, listing found devices and registering them into `CupsPrinterRegistry`.
+- **Wider Portrait Modal Windows**: Expanded dialog window width in Portrait mode to `98%` screen width in `PrintCacheGalleryDialogFragment.kt` and `AddPrinterDialogFragment.kt`, eliminating horizontal crampedness on phone screens.
+- **Relocated Update Check**: Moved "Check for updates" button into the "About Cuppa" card in the Admin tab.
+
 ### `v5.4.0` — September 14, 2026
 - **IPP Status Polling Halt Fix (`Operation.getJobs`)**: Implemented explicit `sendGetJobsResponse` in `IppServer.kt` returning `job-state = JobState.completed`. Gives Android Print Spooler instant job completion confirmation, clearing phone notifications and halting infinite 1s polling loops.
 - **Functional "Hold Incoming Network Prints" (`PREF_HOLD_NETWORK_JOBS`)**: Connected `PREF_HOLD_NETWORK_JOBS` setting switch across both `IppServer` (Port 8631) and `RawSocketServer` (Port 9100). When enabled, incoming network jobs enter `JobQueueManager` in `HELD` status for manual release in the Jobs tab.
@@ -55,6 +63,14 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 ### `v3.1.2` — September 6, 2026 at 8:30 AM
 - **PostScript Filter Bypass & Direct PDF Streaming**: Removed `application/postscript` from IPP `documentFormatSupported` in `IppServer.kt` and mDNS `pdl` TXT record in `PrintServerService.kt`. Forces macOS, Linux, and Windows clients to bypass PostScript CUPS filters (`cgpdftops`) and stream raw PDF documents (`srcdoc.pdf`) directly over IPP without filter text boxes.
 - **Enhanced PostScript Text & Metadata Extraction**: Updated `createPdfFromText` in `IppServer.kt` to extract all PostScript document string calls (`(...) show`, `(...) Tj`, `(...) TJ`) and render actual document content onto 4x6 label canvases whenever PostScript streams are submitted.
+
+### `v5.5.0` — September 14, 2026
+- **Real-Time Jobs Tab Queue Refresh**: Re-bound `jobQueueManager.onQueueJobsChanged` in `JobsTabFragment.kt` so tapping Cancel, Hold, or Release refreshes the Jobs tab list in 0.01s without requiring tab switching.
+- **`FileProvider` Single JPEG Export Crash Fix**: Added `<files-path>` and `<cache-path>` rules to `res/xml/file_paths.xml` and wrapped URI resolution in `try-catch` blocks, preventing app process crashes when exporting single JPEG screenshots.
+- **Unified CUPS Engine Toggle**: Merged Port 9100 RAW Server into the main CUPS Engine switch so activating the CUPS Engine starts Port 8631 (IPP) and Port 9100 (RAW) simultaneously.
+- **Native "Add Printer" Discovery Dialog (`AddPrinterDialogFragment.kt`)**: Added a discovery dialog scanning connected USB devices (`UsbManager`) and local network ports, listing found devices and registering them into `CupsPrinterRegistry`.
+- **Wider Portrait Modal Windows**: Expanded dialog window width in Portrait mode to `98%` screen width in `PrintCacheGalleryDialogFragment.kt` and `AddPrinterDialogFragment.kt`, eliminating horizontal crampedness on phone screens.
+- **Relocated Update Check**: Moved "Check for updates" button into the "About Cuppa" card in the Admin tab.
 
 ### `v5.4.0` — September 14, 2026
 - **IPP Status Polling Halt Fix (`Operation.getJobs`)**: Implemented explicit `sendGetJobsResponse` in `IppServer.kt` returning `job-state = JobState.completed`. Gives Android Print Spooler instant job completion confirmation, clearing phone notifications and halting infinite 1s polling loops.

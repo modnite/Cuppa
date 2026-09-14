@@ -17,6 +17,11 @@ class JobsTabFragment : Fragment() {
 
     fun setJobQueueManager(manager: JobQueueManager) {
         this.jobQueueManager = manager
+        manager.onQueueJobsChanged = { jobs ->
+            activity?.runOnUiThread {
+                refreshAdapter(jobs)
+            }
+        }
         if (view != null) {
             refreshAdapter(manager.getQueuedJobs())
         }

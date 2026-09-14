@@ -2,6 +2,7 @@ package com.modnite.cuppa
 
 import android.app.Dialog
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -31,7 +32,9 @@ class PrintCacheGalleryDialogFragment : DialogFragment() {
     override fun onStart() {
         super.onStart()
         dialog?.window?.apply {
-            val width = (resources.displayMetrics.widthPixels * 0.94).toInt()
+            val isPortrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            val scale = if (isPortrait) 0.98 else 0.94
+            val width = (resources.displayMetrics.widthPixels * scale).toInt()
             setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
     }
@@ -68,17 +71,21 @@ class PrintCacheGalleryDialogFragment : DialogFragment() {
                 rvCacheItems.adapter = CacheGalleryAdapter(
                     files,
                     onExportSingle = { file ->
-                        val contentUri: Uri = FileProvider.getUriForFile(
-                            requireContext(),
-                            "${requireContext().packageName}.fileprovider",
-                            file
-                        )
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "image/jpeg"
-                            putExtra(Intent.EXTRA_STREAM, contentUri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        try {
+                            val contentUri: Uri = FileProvider.getUriForFile(
+                                requireContext(),
+                                "${requireContext().packageName}.fileprovider",
+                                file
+                            )
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "image/jpeg"
+                                putExtra(Intent.EXTRA_STREAM, contentUri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            startActivity(Intent.createChooser(shareIntent, "Export JPEG Screenshot"))
+                        } catch (e: Exception) {
+                            Toast.makeText(requireContext(), "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
                         }
-                        startActivity(Intent.createChooser(shareIntent, "Export JPEG Screenshot"))
                     }
                 )
             }
@@ -97,21 +104,25 @@ class PrintCacheGalleryDialogFragment : DialogFragment() {
         }
 
         btnExportAllZip?.setOnClickListener {
-            val zipFile = PrintHistoryCacheManager.exportCacheZip(requireContext())
-            if (zipFile != null && zipFile.exists()) {
-                val contentUri: Uri = FileProvider.getUriForFile(
-                    requireContext(),
-                    "${requireContext().packageName}.fileprovider",
-                    zipFile
-                )
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/zip"
-                    putExtra(Intent.EXTRA_STREAM, contentUri)
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try {
+                val zipFile = PrintHistoryCacheManager.exportCacheZip(requireContext())
+                if (zipFile != null && zipFile.exists()) {
+                    val contentUri: Uri = FileProvider.getUriForFile(
+                        requireContext(),
+                        "${requireContext().packageName}.fileprovider",
+                        zipFile
+                    )
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_STREAM, contentUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(Intent.createChooser(shareIntent, "Share Print Cache ZIP"))
+                } else {
+                    Toast.makeText(requireContext(), R.string.no_cached_screenshots, Toast.LENGTH_SHORT).show()
                 }
-                startActivity(Intent.createChooser(shareIntent, "Share Print Cache ZIP"))
-            } else {
-                Toast.makeText(requireContext(), R.string.no_cached_screenshots, Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "Export ZIP failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
 
