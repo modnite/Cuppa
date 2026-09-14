@@ -10,8 +10,8 @@ android {
         applicationId = "com.modnite.cuppa"
         minSdk = 24
         targetSdk = 37
-        versionCode = 140
-        versionName = "5.5.0"
+        versionCode = 141
+        versionName = "5.5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

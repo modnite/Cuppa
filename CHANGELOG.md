@@ -4,6 +4,9 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 
 ---
 
+### `v5.5.1` — September 14, 2026
+- **Complete Rebranding of Documentation (`README.md` & `DEVLOG.md`)**: Updated `README.md`, `DEVLOG.md`, repository links, badges, and project guides to reference **Cuppa** throughout.
+
 ### `v5.5.0` — September 14, 2026
 - **Real-Time Jobs Tab Queue Refresh**: Re-bound `jobQueueManager.onQueueJobsChanged` in `JobsTabFragment.kt` so tapping Cancel, Hold, or Release refreshes the Jobs tab list in 0.01s without requiring tab switching.
 - **`FileProvider` Single JPEG Export Crash Fix**: Added `<files-path>` and `<cache-path>` rules to `res/xml/file_paths.xml` and wrapped URI resolution in `try-catch` blocks, preventing app process crashes when exporting single JPEG screenshots.
@@ -63,6 +66,9 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 ### `v3.1.2` — September 6, 2026 at 8:30 AM
 - **PostScript Filter Bypass & Direct PDF Streaming**: Removed `application/postscript` from IPP `documentFormatSupported` in `IppServer.kt` and mDNS `pdl` TXT record in `PrintServerService.kt`. Forces macOS, Linux, and Windows clients to bypass PostScript CUPS filters (`cgpdftops`) and stream raw PDF documents (`srcdoc.pdf`) directly over IPP without filter text boxes.
 - **Enhanced PostScript Text & Metadata Extraction**: Updated `createPdfFromText` in `IppServer.kt` to extract all PostScript document string calls (`(...) show`, `(...) Tj`, `(...) TJ`) and render actual document content onto 4x6 label canvases whenever PostScript streams are submitted.
+
+### `v5.5.1` — September 14, 2026
+- **Complete Rebranding of Documentation (`README.md` & `DEVLOG.md`)**: Updated `README.md`, `DEVLOG.md`, repository links, badges, and project guides to reference **Cuppa** throughout.
 
 ### `v5.5.0` — September 14, 2026
 - **Real-Time Jobs Tab Queue Refresh**: Re-bound `jobQueueManager.onQueueJobsChanged` in `JobsTabFragment.kt` so tapping Cancel, Hold, or Release refreshes the Jobs tab list in 0.01s without requiring tab switching.
