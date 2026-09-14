@@ -4,6 +4,11 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 
 ---
 
+### `v5.6.0` — September 14, 2026
+- **Full-Width Material 3 BottomSheets (`BottomSheetDialogFragment`)**: Converted `PrintCacheGalleryDialogFragment` and `AddPrinterDialogFragment` to `BottomSheetDialogFragment`. Both modals now expand across 100% of portrait screen width, completely solving narrow popup margins on phone screens.
+- **USB Friendly Names & Network Printer Scanning**: Updated `AddPrinterDialogFragment.kt` to display USB printer product names (e.g. `"Rollo X1038 Thermal Printer"`) instead of Linux paths, and added active `NsdManager` Wi-Fi discovery scanning for networked IPP/AirPrint printers.
+- **Purged Standalone RAW Switch**: Removed `switchRawPort9100` from `fragment_admin_tab.xml` and `AdminTabFragment.kt`. Port 9100 RAW Server is 100% merged under the main CUPS Engine switch.
+
 ### `v5.5.1` — September 14, 2026
 - **Complete Rebranding of Documentation (`README.md` & `DEVLOG.md`)**: Updated `README.md`, `DEVLOG.md`, repository links, badges, and project guides to reference **Cuppa** throughout.
 
@@ -66,6 +71,11 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 ### `v3.1.2` — September 6, 2026 at 8:30 AM
 - **PostScript Filter Bypass & Direct PDF Streaming**: Removed `application/postscript` from IPP `documentFormatSupported` in `IppServer.kt` and mDNS `pdl` TXT record in `PrintServerService.kt`. Forces macOS, Linux, and Windows clients to bypass PostScript CUPS filters (`cgpdftops`) and stream raw PDF documents (`srcdoc.pdf`) directly over IPP without filter text boxes.
 - **Enhanced PostScript Text & Metadata Extraction**: Updated `createPdfFromText` in `IppServer.kt` to extract all PostScript document string calls (`(...) show`, `(...) Tj`, `(...) TJ`) and render actual document content onto 4x6 label canvases whenever PostScript streams are submitted.
+
+### `v5.6.0` — September 14, 2026
+- **Full-Width Material 3 BottomSheets (`BottomSheetDialogFragment`)**: Converted `PrintCacheGalleryDialogFragment` and `AddPrinterDialogFragment` to `BottomSheetDialogFragment`. Both modals now expand across 100% of portrait screen width, completely solving narrow popup margins on phone screens.
+- **USB Friendly Names & Network Printer Scanning**: Updated `AddPrinterDialogFragment.kt` to display USB printer product names (e.g. `"Rollo X1038 Thermal Printer"`) instead of Linux paths, and added active `NsdManager` Wi-Fi discovery scanning for networked IPP/AirPrint printers.
+- **Purged Standalone RAW Switch**: Removed `switchRawPort9100` from `fragment_admin_tab.xml` and `AdminTabFragment.kt`. Port 9100 RAW Server is 100% merged under the main CUPS Engine switch.
 
 ### `v5.5.1` — September 14, 2026
 - **Complete Rebranding of Documentation (`README.md` & `DEVLOG.md`)**: Updated `README.md`, `DEVLOG.md`, repository links, badges, and project guides to reference **Cuppa** throughout.

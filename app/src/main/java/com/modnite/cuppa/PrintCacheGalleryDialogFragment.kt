@@ -1,8 +1,6 @@
 package com.modnite.cuppa
 
-import android.app.Dialog
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -14,14 +12,15 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
-import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 
-class PrintCacheGalleryDialogFragment : DialogFragment() {
+class PrintCacheGalleryDialogFragment : BottomSheetDialogFragment() {
 
     companion object {
         fun newInstance(): PrintCacheGalleryDialogFragment {
@@ -31,16 +30,22 @@ class PrintCacheGalleryDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        dialog?.window?.apply {
-            val isPortrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-            val scale = if (isPortrait) 0.98 else 0.94
-            val width = (resources.displayMetrics.widthPixels * scale).toInt()
-            setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT)
+        (dialog as? BottomSheetDialog)?.behavior?.apply {
+            state = BottomSheetBehavior.STATE_EXPANDED
+            skipCollapsed = true
         }
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val view = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_print_cache_gallery, null)
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        return inflater.inflate(R.layout.dialog_print_cache_gallery, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
         val rvCacheItems = view.findViewById<RecyclerView>(R.id.rvCacheItems)
         val tvEmptyCachePlaceholder = view.findViewById<TextView>(R.id.tvEmptyCachePlaceholder)
@@ -137,10 +142,6 @@ class PrintCacheGalleryDialogFragment : DialogFragment() {
         btnCloseCacheGallery.setOnClickListener { dismiss() }
 
         refreshAdapter()
-
-        return MaterialAlertDialogBuilder(requireContext())
-            .setView(view)
-            .create()
     }
 
     private class CacheGalleryAdapter(

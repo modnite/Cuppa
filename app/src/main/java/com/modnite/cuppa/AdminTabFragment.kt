@@ -26,16 +26,13 @@ class AdminTabFragment : Fragment() {
 
         val switchServer = view.findViewById<MaterialSwitch>(R.id.switchServer)
         val switchHoldNetworkJobs = view.findViewById<MaterialSwitch>(R.id.switchHoldNetworkJobs)
-        val switchRawPort9100 = view.findViewById<MaterialSwitch>(R.id.switchRawPort9100)
         val rgAppTheme = view.findViewById<RadioGroup>(R.id.rgAppTheme)
 
         val isServerRunning = PrintServerService.isServerRunning
         switchServer.isChecked = isServerRunning
 
         val holdNetwork = prefs.getBoolean("PREF_HOLD_NETWORK_JOBS", false)
-        val rawPort9100 = prefs.getBoolean("PREF_RAW_PORT_9100", true)
         switchHoldNetworkJobs.isChecked = holdNetwork
-        switchRawPort9100.isChecked = rawPort9100
 
         switchServer.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean("PREF_SERVER_RUNNING", isChecked).apply()
@@ -48,10 +45,6 @@ class AdminTabFragment : Fragment() {
 
         switchHoldNetworkJobs.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean("PREF_HOLD_NETWORK_JOBS", isChecked).apply()
-        }
-
-        switchRawPort9100.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("PREF_RAW_PORT_9100", isChecked).apply()
         }
 
         val btnDiagnostics = view.findViewById<Button>(R.id.btnDiagnostics)
