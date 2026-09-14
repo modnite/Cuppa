@@ -38,9 +38,9 @@ class AdminTabFragment : Fragment() {
 
         switchServer.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                // start server logic triggered by MainActivity usually, or send intent
+                (activity as? MainActivity)?.startIppServer()
             } else {
-                // stop server
+                (activity as? MainActivity)?.stopIppServer()
             }
         }
 

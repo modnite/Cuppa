@@ -4,6 +4,11 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 
 ---
 
+### `v5.2.0` — September 11, 2026
+- **Test Print & Server Toggle Functional Wiring**: Completely removed all placeholder/stub code. Wired the "Test Page" button in the Printers Tab to instantly generate and queue a diagnostic CUPS label. Wired the Server Toggle to cleanly start/stop the `PrintServerService`.
+- **Global Logging Memory Buffer (Zero Lost Logs)**: Added a central `logBuffer` in `MainActivity`. Background USB and IPP Server components now permanently write to this buffer. The Log Tab reads this full history upon opening, eliminating the "empty log" bug caused by lazy fragment initialization.
+- **High-Performance Navigation UI (DeX Optimized)**: Ripped out the slow `ViewPager2` tab system. Implemented a lightning-fast Material 3 `BottomNavigationView` with strict fragment hide/show transactions. Tab switching is now completely instantaneous and immune to Samsung DeX window-resizing measurement bugs.
+
 ### `v5.1.0` — September 11, 2026
 - **Deep Package Rebrand & Directory Migration (`com.modnite.cuppa`)**: Completely migrated the core Android package ID, namespace, and directory structures from `com.example.rolloprint` to `com.modnite.cuppa`. Cuppa is now a distinct, standalone application.
 - **Authentic CUPS Job Controls**: Purged the legacy "Print All" and "Clear Queue" actions. The Jobs Tab now exclusively manages jobs using standard CUPS operations: **Hold**, **Release**, **Cancel**, and **Reprint**.
@@ -39,6 +44,11 @@ All notable milestone releases for the **Cuppa** (formerly RolloPrint) applicati
 ### `v3.1.2` — September 6, 2026 at 8:30 AM
 - **PostScript Filter Bypass & Direct PDF Streaming**: Removed `application/postscript` from IPP `documentFormatSupported` in `IppServer.kt` and mDNS `pdl` TXT record in `PrintServerService.kt`. Forces macOS, Linux, and Windows clients to bypass PostScript CUPS filters (`cgpdftops`) and stream raw PDF documents (`srcdoc.pdf`) directly over IPP without filter text boxes.
 - **Enhanced PostScript Text & Metadata Extraction**: Updated `createPdfFromText` in `IppServer.kt` to extract all PostScript document string calls (`(...) show`, `(...) Tj`, `(...) TJ`) and render actual document content onto 4x6 label canvases whenever PostScript streams are submitted.
+
+### `v5.2.0` — September 11, 2026
+- **Test Print & Server Toggle Functional Wiring**: Completely removed all placeholder/stub code. Wired the "Test Page" button in the Printers Tab to instantly generate and queue a diagnostic CUPS label. Wired the Server Toggle to cleanly start/stop the `PrintServerService`.
+- **Global Logging Memory Buffer (Zero Lost Logs)**: Added a central `logBuffer` in `MainActivity`. Background USB and IPP Server components now permanently write to this buffer. The Log Tab reads this full history upon opening, eliminating the "empty log" bug caused by lazy fragment initialization.
+- **High-Performance Navigation UI (DeX Optimized)**: Ripped out the slow `ViewPager2` tab system. Implemented a lightning-fast Material 3 `BottomNavigationView` with strict fragment hide/show transactions. Tab switching is now completely instantaneous and immune to Samsung DeX window-resizing measurement bugs.
 
 ### `v5.1.0` — September 11, 2026
 - **Deep Package Rebrand & Directory Migration (`com.modnite.cuppa`)**: Completely migrated the core Android package ID, namespace, and directory structures from `com.example.rolloprint` to `com.modnite.cuppa`. Cuppa is now a distinct, standalone application.

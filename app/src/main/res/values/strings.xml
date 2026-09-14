@@ -55,4 +55,8 @@
     <string name="view_cache">View cache</string>
     <string name="print_cache_card_title">Print history cache</string>
     <string name="cache_count_empty">Cache: Empty</string>
+    <string name="tab_printers">Printers</string>
+    <string name="tab_jobs">Jobs</string>
+    <string name="tab_admin">Admin</string>
+    <string name="tab_log">Log</string>
 </resources>

@@ -33,12 +33,11 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
-import androidx.viewpager2.widget.ViewPager2;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.tabs.TabLayout;
-import com.google.android.material.tabs.TabLayoutMediator;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -49,10 +48,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     public UsbPrintManager printManager;
-    private JobQueueManager jobQueueManager;
+    public JobQueueManager jobQueueManager;
     private AppUpdateManager appUpdateManager;
 
     private PrintServerService printServerService;
@@ -63,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
     private JobsTabFragment jobsTab;
     private AdminTabFragment adminTab;
     private LogTabFragment logTab;
+
+    public final StringBuilder logBuffer = new StringBuilder();
 
     private final Handler pollHandler = new Handler(Looper.getMainLooper());
     private final Runnable pollRunnable = new Runnable() {
@@ -152,18 +156,33 @@ public class MainActivity extends AppCompatActivity {
         adminTab = new AdminTabFragment();
         logTab = new LogTabFragment();
 
-        ViewPager2 viewPager = findViewById(R.id.viewPager);
-        TabLayout tabLayout = findViewById(R.id.tabLayout);
+        FragmentManager fm = getSupportFragmentManager();
+        fm.beginTransaction()
+                .add(R.id.fragmentContainer, printersTab, "Printers")
+                .add(R.id.fragmentContainer, jobsTab, "Jobs").hide(jobsTab)
+                .add(R.id.fragmentContainer, adminTab, "Admin").hide(adminTab)
+                .add(R.id.fragmentContainer, logTab, "Log").hide(logTab)
+                .commit();
 
-        viewPager.setAdapter(new CupsPagerAdapter(this));
-        new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
-            switch (position) {
-                case 0: tab.setText("Printers"); break;
-                case 1: tab.setText("Jobs"); break;
-                case 2: tab.setText("Admin"); break;
-                case 3: tab.setText("Log"); break;
+        BottomNavigationView bottomNav = findViewById(R.id.bottomNavigation);
+        bottomNav.setOnItemSelectedListener(item -> {
+            FragmentTransaction ft = fm.beginTransaction();
+            ft.hide(printersTab).hide(jobsTab).hide(adminTab).hide(logTab);
+
+            int itemId = item.getItemId();
+            if (itemId == R.id.nav_printers) {
+                ft.show(printersTab);
+            } else if (itemId == R.id.nav_jobs) {
+                jobsTab.setJobQueueManager(jobQueueManager);
+                ft.show(jobsTab);
+            } else if (itemId == R.id.nav_admin) {
+                ft.show(adminTab);
+            } else if (itemId == R.id.nav_log) {
+                ft.show(logTab);
             }
-        }).attach();
+            ft.commit();
+            return true;
+        });
 
         printManager = new UsbPrintManager(this, text -> {
             log(text);
@@ -200,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         ContextCompat.registerReceiver(this, usbReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
 
-        String appVersion = "5.1.0";
+        String appVersion = "5.2.0";
         try {
             appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
         } catch (Exception e) {}
@@ -227,9 +246,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void log(String text) {
-        if (logTab != null) {
+        String timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
+        String logLine = "[" + timestamp + "] " + text + "\n";
+        logBuffer.append(logLine);
+        
+        if (logTab != null && logTab.isAdded()) {
             logTab.log(text);
         }
+    }
+
+    public void startIppServer() {
+        if (isServiceBound && printServerService != null) return;
+        Intent intent = new Intent(this, PrintServerService.class);
+        intent.setAction(PrintServerService.ACTION_START);
+        try {
+            ContextCompat.startForegroundService(this, intent);
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+        } catch (Exception e) {
+            log("ERROR starting IPP print server: " + e.getMessage());
+        }
+    }
+
+    public void stopIppServer() {
+        if (isServiceBound && printServerService != null) {
+            printServerService.stopServer();
+            unbindService(serviceConnection);
+            isServiceBound = false;
+        }
+        stopService(new Intent(this, PrintServerService.class));
     }
 
     public void dumpActivityLogsToEtherpad() {
@@ -388,23 +432,5 @@ public class MainActivity extends AppCompatActivity {
         try {
             unregisterReceiver(usbReceiver);
         } catch (Exception e) { }
-    }
-
-    private class CupsPagerAdapter extends FragmentStateAdapter {
-        public CupsPagerAdapter(@NonNull FragmentActivity fragmentActivity) {
-            super(fragmentActivity);
-        }
-        @NonNull @Override public Fragment createFragment(int position) {
-            switch (position) {
-                case 0: return printersTab;
-                case 1:
-                    jobsTab.setJobQueueManager(jobQueueManager);
-                    return jobsTab;
-                case 2: return adminTab;
-                case 3: return logTab;
-                default: return printersTab;
-            }
-        }
-        @Override public int getItemCount() { return 4; }
     }
 }

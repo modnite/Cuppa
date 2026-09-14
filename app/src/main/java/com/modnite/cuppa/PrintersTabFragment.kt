@@ -22,7 +22,9 @@ class PrintersTabFragment : Fragment() {
 
         val btnTestPage = view.findViewById<MaterialButton>(R.id.btnTestPage)
         btnTestPage.setOnClickListener {
-            // Future implementation: Send test page to printer
+            (activity as? MainActivity)?.let { main ->
+                main.printManager.printTestPage(main.jobQueueManager)
+            }
         }
 
         return view
