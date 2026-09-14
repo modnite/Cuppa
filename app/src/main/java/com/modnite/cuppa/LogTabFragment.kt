@@ -25,9 +25,19 @@ class LogTabFragment : Fragment() {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 try {
+                    var verName = "5.4.0"
+                    try {
+                        verName = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0).versionName ?: "5.4.0"
+                    } catch (_: Exception) {}
+
+                    val logHeader = "=== Cuppa Server Log (v$verName) ===\nTimestamp: " +
+                            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()) +
+                            "\n=================================\n\n"
+
+                    val fullContent = logHeader + tvLog.text.toString()
+
                     requireContext().contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        val logText = tvLog.text.toString()
-                        outputStream.write(logText.toByteArray(Charsets.UTF_8))
+                        outputStream.write(fullContent.toByteArray(Charsets.UTF_8))
                         Toast.makeText(requireContext(), "Log saved successfully.", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
@@ -53,11 +63,16 @@ class LogTabFragment : Fragment() {
                 return@setOnClickListener
             }
 
+            var verName = "5.4.0"
+            try {
+                verName = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0).versionName ?: "5.4.0"
+            } catch (_: Exception) {}
+
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "text/plain"
-                putExtra(Intent.EXTRA_TITLE, "cuppa_server_log_$timestamp.txt")
+                putExtra(Intent.EXTRA_TITLE, "cuppa_log_v${verName}_$timestamp.txt")
             }
             saveLogLauncher.launch(intent)
         }

@@ -129,8 +129,13 @@ class RawSocketServer(
         val bitmap = printManager.renderPdfToBitmap(uri)
         if (bitmap != null) {
             PrintHistoryCacheManager.saveJobScreenshot(context, bitmap, jobId, "raw_network", osFamily)
-            logger("[RAW_9100] Stream converted to 816x1218 bitmap. Adding RAW Job #$jobId [$osFamily] to Print Queue...")
-            jobQueueManager.addJob(bitmap, "RAW Job #$jobId ($osFamily)", false, jobId)
+
+            val prefs = context.getSharedPreferences("rollo_prefs", Context.MODE_PRIVATE)
+            val holdNetworkJobs = prefs.getBoolean("PREF_HOLD_NETWORK_JOBS", false)
+            val modeStr = if (holdNetworkJobs) "HELD" else "PENDING"
+
+            logger("[RAW_9100] Stream converted to 816x1218 bitmap. Adding RAW Job #$jobId [$osFamily] to Print Queue [$modeStr]...")
+            jobQueueManager.addJob(bitmap, "RAW Job #$jobId ($osFamily)", holdNetworkJobs, jobId)
         } else {
             logger("[RAW_9100] ERROR: Failed to render bitmap for RAW Job #$jobId")
         }

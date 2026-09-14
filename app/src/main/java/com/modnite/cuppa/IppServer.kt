@@ -212,6 +212,10 @@ class IppServer(
                         logger("[IPP] Get-Job-Attributes request (req-id=$requestId, v=$version) from $clientIp [$osFamily]")
                         sendGetJobAttributesResponse(socket, version, requestId)
                     }
+                    Operation.getJobs -> {
+                        logger("[IPP] Get-Jobs request (req-id=$requestId, v=$version) from $clientIp [$osFamily]")
+                        sendGetJobsResponse(socket, version, requestId)
+                    }
                     else -> {
                         logger("[IPP] Operation $operation requested (req-id=$requestId, v=$version) from $clientIp [$osFamily]")
                         sendSimpleIppResponse(socket, version, requestId, Status.successfulOk)
@@ -232,12 +236,11 @@ class IppServer(
         val dataStr = String(data, 0, Math.min(data.size, 1024), Charsets.US_ASCII).lowercase()
 
         return when {
+            lowerHeader.contains("android") -> "android"
             lowerHeader.contains("iphone") || lowerHeader.contains("ipad") || lowerHeader.contains("ipod") || lowerHeader.contains("ios") -> "ios"
             lowerHeader.contains("macintosh") || lowerHeader.contains("darwin") || lowerHeader.contains("mac os x") || lowerHeader.contains("cfnetwork") || dataStr.contains("cgpdftops") || dataStr.contains("safari") || dataStr.contains("mac") || dataStr.contains("apple") -> "macos"
             lowerHeader.contains("windows") || lowerHeader.contains("microsoft") || lowerHeader.contains("nt 10.0") || lowerHeader.contains("nt 11.0") -> "windows"
-            lowerHeader.contains("linux") || lowerHeader.contains("ubuntu") || lowerHeader.contains("debian") -> "linux"
-            lowerHeader.contains("android") -> "android"
-            lowerHeader.contains("cups") -> if (dataStr.contains("mac") || dataStr.contains("apple") || dataStr.contains("cgpdftops") || dataStr.contains("safari")) "macos" else "linux"
+            lowerHeader.contains("linux") || lowerHeader.contains("ubuntu") || lowerHeader.contains("debian") || lowerHeader.contains("cups") -> "linux"
             else -> "network"
         }
     }
@@ -468,6 +471,33 @@ class IppServer(
             Tag.jobAttributes,
             listOf(
                 Types.jobId.of(1),
+                Types.jobState.of(JobState.completed),
+                Types.jobStateReasons.of("job-completed-successfully")
+            )
+        )
+
+        val responsePacket = IppPacket(
+            versionNumber = version,
+            code = Status.successfulOk.code,
+            requestId = requestId,
+            attributeGroups = listOf(opGroup, jobGroup)
+        )
+        sendIppPacketResponse(socket, responsePacket)
+    }
+
+    private fun sendGetJobsResponse(socket: Socket, version: Int, requestId: Int) {
+        val opGroup = MutableAttributeGroup(
+            Tag.operationAttributes,
+            listOf(
+                Types.attributesCharset.of("utf-8"),
+                Types.attributesNaturalLanguage.of("en")
+            )
+        )
+
+        val jobGroup = MutableAttributeGroup(
+            Tag.jobAttributes,
+            listOf(
+                Types.jobId.of(101),
                 Types.jobState.of(JobState.completed),
                 Types.jobStateReasons.of("job-completed-successfully")
             )
@@ -835,14 +865,16 @@ class IppServer(
             PrintHistoryCacheManager.saveJobScreenshot(context, bitmap, jobId, "network", osFamily)
 
             val prefs = context.getSharedPreferences("rollo_prefs", Context.MODE_PRIVATE)
+            val holdNetworkJobs = prefs.getBoolean("PREF_HOLD_NETWORK_JOBS", false)
             val showNetworkPreview = prefs.getBoolean("PREF_NETWORK_PREVIEW", false)
 
             if (showNetworkPreview && onNetworkBitmapRendered != null) {
                 logger("[IPP] Displaying Print Preview Dialog for Network Job #$jobId [$osFamily]...")
                 onNetworkBitmapRendered.invoke(bitmap)
             } else {
-                logger("[IPP] PDF converted to 816x1218 bitmap. Adding Network Job #$jobId [$osFamily] to Print Queue...")
-                jobQueueManager.addJob(bitmap, "Network Job #$jobId ($osFamily)", false, jobId)
+                val modeStr = if (holdNetworkJobs) "HELD" else "PENDING"
+                logger("[IPP] PDF converted to 816x1218 bitmap. Adding Network Job #$jobId [$osFamily] to Print Queue [$modeStr]...")
+                jobQueueManager.addJob(bitmap, "Network Job #$jobId ($osFamily)", holdNetworkJobs, jobId)
             }
         } else {
             logger("[IPP] ERROR: Failed to render bitmap for Network Job #$jobId")
