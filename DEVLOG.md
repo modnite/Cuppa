@@ -62,3 +62,39 @@ removed the redundant ones. Same pattern turned up again in Thermal Settings: da
 speed, dither mode, and invert-polarity were all stored but never actually applied to printed
 output on either the real dispatch path or Test Print — fixed by threading `ThermalPreferences`
 through both.
+
+## 2026-09-17 — Repo migration, CI hell, and a real release pipeline
+
+Decided the old RolloPrint repo had run its course. Nuked it — 56 tags, all the history, gone —
+and turned it into Cuppa's actual home. If I'm going to keep building this thing I want it done
+right: real repo, real CI, real releases people can actually update to, not me manually sideloading
+APKs onto my own phone forever.
+
+Getting there was more painful than it should've been. The GitHub Actions workflow failed four
+separate times before it built anything: a third-party Android SDK setup action that just didn't
+work anymore, sdkmanager not even being on PATH once I ripped that action out, my own
+`gradle.properties` having a hardcoded path to my own machine's Android Studio JDK baked into it
+(that one's embarrassing, but also — how did that even work locally this whole time), and then the
+keystore secret getting silently corrupted going through the Windows clipboard of all things. Fixed
+all four one at a time, actually reading the logs instead of guessing and re-running blind.
+
+Also nearly pasted a live GitHub token straight into chat. Revoked it on the spot. Not doing that
+again.
+
+Once it actually built, went back and cleaned out the graveyard — 90 old releases and 97 old
+workflow runs from the old project, deleted. First real release, v0.5.0, came out the other end
+signed and published automatically. Tested the in-app updater on my own phone and it worked first
+try, which honestly I wasn't expecting.
+
+Then immediately found out the permission toggles had been lying to me the whole time. Granted
+notifications, granted battery exemption, and the UI just sat there showing the old state until I
+tapped it again. Turned out Dashboard and Settings each had their own half-working copy of the same
+permission-check logic, so I'd fixed it in one place and it was still broken in the other. Ripped
+both out and replaced them with one version: both permissions get requested automatically at
+launch now, no hunting for a button, and Settings is the only place left that shows status.
+
+While I was in there I also finally asked out loud why every tab had this huge dead gap under the
+title. Answer: a collapsing app bar that was never actually being used for anything it's meant for.
+Swapped it for a normal-sized one everywhere. Immediate improvement, zero downside.
+
+Shipped that batch as v0.5.1 right after.
