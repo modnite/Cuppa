@@ -30,8 +30,12 @@ jobs:
           distribution: "temurin"
           cache: gradle
 
-      # ubuntu-latest already ships with the Android SDK and sdkmanager preinstalled
-      # ($ANDROID_HOME is preset) — no third-party setup action needed.
+      # ubuntu-latest ships with the Android SDK preinstalled (ANDROID_HOME is preset), but its
+      # cmdline-tools/sdkmanager aren't on PATH by default — add them rather than depending on a
+      # third-party setup action (android-actions/setup-android@v3 failed outright on this image).
+      - name: Add Android cmdline-tools to PATH
+        run: echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
       - name: Accept SDK licenses
         run: yes | sdkmanager --licenses > /dev/null || true
 
