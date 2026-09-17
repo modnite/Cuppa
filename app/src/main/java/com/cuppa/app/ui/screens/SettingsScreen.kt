@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +47,7 @@ import com.cuppa.app.util.ShizukuHelper
 import com.cuppa.app.util.UsbPermissionHelper
 import com.cuppa.cups.CupsEngine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -119,10 +123,33 @@ fun SettingsScreen(
         ) {
             // Permissions & System Access Section
             SettingsGroup(title = "Permissions & System Access") {
-                val notifGranted = PermissionManager.hasNotificationPermission(context)
-                val batteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
+                var notifGranted by remember { mutableStateOf(PermissionManager.hasNotificationPermission(context)) }
+                var batteryExempt by remember { mutableStateOf(PermissionManager.isBatteryOptimizationIgnored(context)) }
                 val permEvent by UsbPermissionHelper.permissionEvent.collectAsState()
                 val connectedUsb = remember(permEvent) { PermissionManager.getConnectedUsbDevices(context) }
+                val lifecycleOwner = LocalLifecycleOwner.current
+                val permScope = rememberCoroutineScope()
+
+                // Re-check both permissions on every resume (returning from either system
+                // dialog). Battery exemption specifically also gets a delayed second check:
+                // PowerManager.isIgnoringBatteryOptimizations() can lag briefly behind the
+                // system dialog's own confirmation — most noticeably on Samsung's battery
+                // management layer — so an immediate re-check right on resume can still read
+                // the pre-grant value even though the user just approved it.
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            notifGranted = PermissionManager.hasNotificationPermission(context)
+                            batteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
+                            permScope.launch {
+                                delay(700)
+                                batteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
+                            }
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
 
                 SettingsItem(
                     icon = Icons.Outlined.Usb,
