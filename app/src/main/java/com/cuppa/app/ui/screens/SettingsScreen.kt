@@ -26,7 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -68,7 +67,6 @@ fun SettingsScreen(
     onNavigateToDrivers: () -> Unit = {},
     onNavigateToThermal: () -> Unit = {},
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("cuppa_settings", Context.MODE_PRIVATE) }
@@ -97,20 +95,17 @@ fun SettingsScreen(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+            .fillMaxSize(),
     ) {
-        LargeTopAppBar(
+        TopAppBar(
             title = {
                 Text(
                     text = "Settings",
                     fontWeight = FontWeight.SemiBold,
                 )
             },
-            scrollBehavior = scrollBehavior,
-            colors = TopAppBarDefaults.largeTopAppBarColors(
+            colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.surface,
-                scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
         )
 
