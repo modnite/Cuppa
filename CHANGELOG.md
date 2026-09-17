@@ -3,6 +3,17 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.5] - 2026-09-17
+
+### Changed
+- Release builds now only bundle the two ABIs a real phone can use (arm64-v8a, armeabi-v7a)
+  instead of all four. Cuts the APK roughly in half. Debug builds still get all four so the
+  emulator keeps working.
+- Removed an unused `lifecycle-service` dependency.
+- Removed 8 unused string resources.
+- The "Bundled" label on built-in drivers in Driver Management no longer looks like a button
+  that does nothing when tapped.
+
 ## [0.5.4] - 2026-09-17
 
 ### Changed

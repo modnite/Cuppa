@@ -1,14 +1,6 @@
 <resources>
     <string name="app_name">Cuppa</string>
-    <string name="server_status_running">Print Server Running</string>
-    <string name="server_status_stopped">Print Server Stopped</string>
-    <string name="nav_dashboard">Dashboard</string>
-    <string name="nav_printers">Printers</string>
-    <string name="nav_jobs">Jobs</string>
-    <string name="nav_settings">Settings</string>
     <string name="notification_channel_name">Print Server</string>
     <string name="notification_channel_description">Keeps the Cuppa print server running in the background</string>
     <string name="notification_title">Cuppa Print Server</string>
-    <string name="notification_text_running">Print server is active and accepting connections</string>
-    <string name="notification_text_stopped">Print server is stopped</string>
 </resources>

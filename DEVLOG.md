@@ -3,6 +3,30 @@
 Informal running notes on notable debugging sessions and design decisions. See CHANGELOG.md for
 the user-facing summary.
 
+## 2026-09-17: Cutting the APK in half and a cleanup pass
+
+Went looking for clutter and half-finished features after getting the icon and screenshots
+sorted. Codebase held up well. No stubs, no dead settings, nothing wired to fake data.
+
+The one real find was the release APK shipping all four native ABIs (arm64-v8a, armeabi-v7a,
+x86, x86_64) in every build. Real phones only ever need the first two. x86/x86_64 exist purely
+for the emulator. Tried the obvious fix first, setting `ndk.abiFilters` on the release build
+type. Built clean, changed nothing. Confirmed with a full clean rebuild that all four ABIs still
+came out the other end. Per-buildType abiFilters just isn't honored for CMake-based
+externalNativeBuild in this AGP version. Ended up deciding the ABI list from the invoked task
+name instead. Release gets two ABIs, everything else still gets four. APK went from about 20.7MB
+to 11.2MB.
+
+Also cleared out an unused `lifecycle-service` dependency (the print service never actually
+extended `LifecycleService`), 8 dead string resources nothing referenced, and a "Bundled" label
+in Driver Management that was a `SuggestionChip` with an empty `onClick`, so it looked pressable
+and did nothing. Replaced it with a plain label.
+
+Left Bouncy Castle alone. It's only there for self-signed TLS cert generation, and swapping it
+for Android's own AndroidKeyStore-backed cert generation would drop the SAN entries I added
+specifically because some Windows IPP clients check them. Not worth risking IPPS compatibility
+to save a few MB.
+
 ## 2026-09-17: Getting real printing working end to end
 
 Spent a debugging session tracing "testing a print simply does nothing" down to five separate bugs.
