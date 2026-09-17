@@ -22,6 +22,12 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- In-app updater: installing a downloaded APK requires explicit "install unknown apps"
+         consent (System Settings), which this permission lets the app request. No storage
+         permission is needed — the APK is downloaded to the app's own private cache dir and
+         handed to the installer via the FileProvider already declared below. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- USB host mode (for USB printers) -->
     <uses-feature
         android:name="android.hardware.usb.host"

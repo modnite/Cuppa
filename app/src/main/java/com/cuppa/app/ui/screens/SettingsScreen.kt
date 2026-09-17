@@ -85,6 +85,7 @@ fun SettingsScreen(
     var showDiagnosticsDialog by remember { mutableStateOf(false) }
     var showHelpSupportDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         ShizukuHelper.updateState()
@@ -213,6 +214,16 @@ fun SettingsScreen(
                     subtitle = "AirPrint, Windows setup, root & thermal guides",
                     onClick = { showHelpSupportDialog = true },
                 )
+                run {
+                    val availableUpdate by com.cuppa.app.update.UpdateManager.availableUpdate.collectAsState()
+                    SettingsItem(
+                        icon = Icons.Outlined.SystemUpdate,
+                        title = "Check for Updates",
+                        subtitle = availableUpdate?.let { "Update available: v${it.versionName}" }
+                            ?: "Up to date (v${BuildConfig.VERSION_NAME})",
+                        onClick = { showUpdateDialog = true },
+                    )
+                }
                 SettingsItem(
                     icon = Icons.Outlined.Info,
                     title = "About Cuppa",
@@ -264,6 +275,10 @@ fun SettingsScreen(
 
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
+    }
+
+    if (showUpdateDialog) {
+        UpdateDialog(onDismiss = { showUpdateDialog = false })
     }
 }
 
@@ -1093,6 +1108,168 @@ private fun AboutDialog(onDismiss: () -> Unit) {
         confirmButton = {
             Button(onClick = onDismiss) {
                 Text("OK")
+            }
+        }
+    )
+}
+
+// ==========================================
+// 8. UPDATE DIALOG
+// ==========================================
+@Composable
+private fun UpdateDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val availableUpdate by com.cuppa.app.update.UpdateManager.availableUpdate.collectAsState()
+    val downloadState by com.cuppa.app.update.UpdateManager.downloadState.collectAsState()
+    var isChecking by remember { mutableStateOf(false) }
+    var checkError by remember { mutableStateOf<String?>(null) }
+    var autoCheckEnabled by remember { mutableStateOf(com.cuppa.app.update.UpdateManager.isAutoCheckEnabled(context)) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("App Updates") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Auto-check for updates", fontWeight = FontWeight.Medium)
+                        Text(
+                            "Checks once every few hours when the app opens. Never downloads or installs without you tapping below.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoCheckEnabled,
+                        onCheckedChange = {
+                            autoCheckEnabled = it
+                            com.cuppa.app.update.UpdateManager.setAutoCheckEnabled(context, it)
+                        }
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                when (val ds = downloadState) {
+                    is com.cuppa.app.update.DownloadState.Idle -> {
+                        if (availableUpdate == null) {
+                            Text(
+                                text = "You're on the latest version (v${BuildConfig.VERSION_NAME}).",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            checkError?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        isChecking = true
+                                        checkError = null
+                                        val result = com.cuppa.app.update.UpdateManager.checkForUpdate(context, force = true)
+                                        result.onFailure { checkError = it.message ?: "Check failed" }
+                                        isChecking = false
+                                    }
+                                },
+                                enabled = !isChecking,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (isChecking) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text("Check Now")
+                            }
+                        } else {
+                            val update = availableUpdate!!
+                            Text(
+                                text = "Update available: v${update.versionName}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            if (update.releaseNotes.isNotBlank()) {
+                                Text(
+                                    text = update.releaseNotes.take(1000),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                            Button(
+                                onClick = { scope.launch { com.cuppa.app.update.UpdateManager.downloadUpdate(context, update) } },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Download & Install")
+                            }
+                        }
+                    }
+                    is com.cuppa.app.update.DownloadState.Downloading -> {
+                        val progress = if (ds.totalBytes > 0) ds.bytesDownloaded.toFloat() / ds.totalBytes else 0f
+                        Text("Downloading update…", fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${ds.bytesDownloaded / 1024} KB / ${if (ds.totalBytes > 0) "${ds.totalBytes / 1024} KB" else "?"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    is com.cuppa.app.update.DownloadState.ReadyToInstall -> {
+                        Text("Download complete — ready to install.", fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        if (!com.cuppa.app.update.UpdateManager.canInstallPackages(context)) {
+                            Text(
+                                "Cuppa needs permission to install unknown apps first.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { com.cuppa.app.update.UpdateManager.requestInstallPermission(context) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Grant Permission")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Button(
+                            onClick = { com.cuppa.app.update.UpdateManager.installApk(context, ds.file) },
+                            enabled = com.cuppa.app.update.UpdateManager.canInstallPackages(context),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Install")
+                        }
+                    }
+                    is com.cuppa.app.update.DownloadState.Failed -> {
+                        Text(
+                            text = "Download failed: ${ds.message}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = { com.cuppa.app.update.UpdateManager.resetDownloadState() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Try Again")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
             }
         }
     )

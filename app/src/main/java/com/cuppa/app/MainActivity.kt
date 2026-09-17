@@ -27,11 +27,14 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import com.cuppa.app.navigation.CuppaNavHost
 import com.cuppa.app.navigation.Screen
 import com.cuppa.app.ui.theme.CuppaTheme
 import com.cuppa.app.ui.theme.ThemeState
+import com.cuppa.app.update.UpdateManager
 import kotlinx.coroutines.launch
 
 /**
@@ -147,9 +150,17 @@ fun CuppaApp() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val context = LocalContext.current
 
     // Track the selected index for bottom nav animation
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
+
+    // Throttled (at most once per 6h) background check, gated by the "Auto-check for updates"
+    // setting — never downloads or installs anything on its own, just surfaces availability via
+    // UpdateManager.availableUpdate for the Settings screen (and the bottom-nav badge below).
+    LaunchedEffect(Unit) {
+        UpdateManager.checkForUpdate(context)
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -191,20 +202,34 @@ private fun CuppaBottomNavBar(
     currentRoute: String?,
     onNavigate: (Screen) -> Unit,
 ) {
+    val availableUpdate by UpdateManager.availableUpdate.collectAsState()
+
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Screen.bottomNavItems.forEach { screen ->
             val isSelected = currentRoute == screen.route
+            val showUpdateBadge = availableUpdate != null && screen == Screen.Settings
 
             NavigationBarItem(
                 selected = isSelected,
                 onClick = { onNavigate(screen) },
                 icon = {
-                    Icon(
-                        imageVector = if (isSelected) screen.selectedIcon else screen.unselectedIcon,
-                        contentDescription = screen.title,
-                    )
+                    if (showUpdateBadge) {
+                        androidx.compose.material3.BadgedBox(
+                            badge = { androidx.compose.material3.Badge() }
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) screen.selectedIcon else screen.unselectedIcon,
+                                contentDescription = screen.title,
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = if (isSelected) screen.selectedIcon else screen.unselectedIcon,
+                            contentDescription = screen.title,
+                        )
+                    }
                 },
                 label = { Text(screen.title) },
                 colors = NavigationBarItemDefaults.colors(

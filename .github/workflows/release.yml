@@ -1,0 +1,88 @@
+name: Build and Publish Release APK
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 0.5.0) — only needed for a manual run without a tag"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Publish APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager --install "ndk;28.2.13676358"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Derives versionCode/versionName from the pushed tag (v1.2.3 -> code 10203, name 1.2.3)
+      # rather than requiring a manual build.gradle.kts edit before every release. A manual
+      # workflow_dispatch run without a tag falls back to the "version" input instead.
+      - name: Compute version from tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            RAW_VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            RAW_VERSION="${{ inputs.version }}"
+          fi
+          if [[ -z "$RAW_VERSION" ]]; then
+            echo "No version tag or manual version input provided." >&2
+            exit 1
+          fi
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$RAW_VERSION"
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "name=$RAW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      # Keystore never touches the repo: decoded here from a base64 secret into a runner-local
+      # file, referenced only via environment variables that app/build.gradle.kts already reads
+      # (see keystore.properties.example for the equivalent local-dev file).
+      - name: Decode release keystore
+        run: echo "${{ secrets.CUPPA_KEYSTORE_BASE64 }}" | base64 -d > "${{ runner.temp }}/release.jks"
+
+      - name: Build signed release APK
+        env:
+          CUPPA_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          CUPPA_KEYSTORE_STORE_PASSWORD: ${{ secrets.CUPPA_KEYSTORE_STORE_PASSWORD }}
+          CUPPA_KEYSTORE_KEY_ALIAS: ${{ secrets.CUPPA_KEYSTORE_KEY_ALIAS }}
+          CUPPA_KEYSTORE_KEY_PASSWORD: ${{ secrets.CUPPA_KEYSTORE_KEY_PASSWORD }}
+        run: |
+          ./gradlew :app:assembleRelease \
+            -PreleaseVersionCode=${{ steps.version.outputs.code }} \
+            -PreleaseVersionName=${{ steps.version.outputs.name }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

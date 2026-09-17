@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="cache_logs" path="logs/" />
+    <cache-path name="cache_updates" path="updates/" />
     <cache-path name="shared_cache" path="." />
     <files-path name="files_logs" path="logs/" />
 </paths>
