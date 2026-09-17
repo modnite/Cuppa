@@ -3,6 +3,10 @@
 Informal running notes on notable debugging sessions and design decisions. See CHANGELOG.md for
 the user-facing summary.
 
+These are written in my own voice, but I'm not the one writing the code. I don't have much coding
+experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
+test everything on real hardware, and decide what Cuppa should do and how it should feel.
+
 ## 2026-09-17: Cutting the APK in half and a cleanup pass
 
 Went looking for clutter and half-finished features after getting the icon and screenshots

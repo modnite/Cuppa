@@ -7,6 +7,10 @@ no WebView, and no vendor app locking you into one printer brand. It hosts a rea
 server right on the phone. Any Mac, Windows PC, iPhone, or iPad on the same network can find it
 and print to it like a normal network printer, with no driver install needed on the other end.
 
+I don't have much coding experience myself. Claude (Anthropic's AI) wrote and debugged nearly all
+of the code here. I directed the work, tested it on real printers, and made the calls on what to
+build and how it should feel. I don't want to take credit that isn't mine.
+
 ## Screenshots
 
 <p float="left">
