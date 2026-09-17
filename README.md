@@ -71,13 +71,6 @@ A release build also needs a signing keystore. Copy `keystore.properties.example
 `keystore.properties` and fill in your own values. That file is gitignored so it never leaves your
 machine.
 
-## Releasing
-
-Pushing a tag like `v1.2.3` triggers GitHub Actions to build a signed release APK and publish it
-automatically. See `.github/workflows/release.yml`. The signing keystore never touches the repo.
-It gets decoded from a base64 secret at build time. versionCode and versionName come straight from
-the tag so there's no manual version bump before tagging.
-
 ## License
 
 Check the individual source headers. The ported CUPS sources keep their original Apache 2.0
