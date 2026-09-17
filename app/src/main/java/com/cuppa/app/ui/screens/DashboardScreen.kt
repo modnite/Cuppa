@@ -28,8 +28,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Wifi
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.collectAsState
 import com.cuppa.app.util.PermissionManager
@@ -49,11 +47,9 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,13 +60,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import com.cuppa.app.data.ServerState
 import com.cuppa.app.ui.theme.ServerRunning
 import com.cuppa.app.ui.theme.ServerStopped
@@ -128,44 +119,12 @@ fun DashboardScreen(
 
     var testUriInput by remember(defaultUri) { mutableStateOf(defaultUri) }
 
-    var hasNotifPermission by remember { mutableStateOf(PermissionManager.hasNotificationPermission(context)) }
-    var isBatteryExempt by remember { mutableStateOf(PermissionManager.isBatteryOptimizationIgnored(context)) }
+    // Notification and battery-optimization permissions are requested automatically at app
+    // launch (MainActivity.onCreate()) and managed/re-grantable from Settings — Dashboard no
+    // longer duplicates grant buttons for either, which used to require keeping two independent
+    // (and, as it turned out, independently buggy) copies of the same refresh logic in sync.
     val permEvent by UsbPermissionHelper.permissionEvent.collectAsState()
     val unpermittedPrinters = remember(permEvent) { PermissionManager.getUnpermittedUsbPrinters(context) }
-
-    val notifPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasNotifPermission = granted
-    }
-
-    // Battery-optimization exemption has no result-callback API (unlike the notification
-    // permission launcher above) — the request intent is fire-and-forget, so re-checking right
-    // after starting it (as this used to do) always reads the pre-grant value since the system
-    // dialog hasn't even appeared yet. Re-check on resume instead, with a delayed second check
-    // since PowerManager.isIgnoringBatteryOptimizations() can lag briefly behind the dialog's
-    // own confirmation (most noticeable on Samsung's battery management layer).
-    //
-    // Notification permission also needs a resume-driven re-check despite having its own
-    // launcher above: MainActivity.onCreate() fires its own separate auto-request at app
-    // launch (using a different launcher that only logs the result), so a grant from that
-    // launch-time toast never reaches this composable's hasNotifPermission at all otherwise.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val permScope = rememberCoroutineScope()
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotifPermission = PermissionManager.hasNotificationPermission(context)
-                isBatteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
-                permScope.launch {
-                    delay(700)
-                    isBatteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     Column(
         modifier = Modifier
@@ -195,7 +154,7 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // ---- Permission & Device Access Warning Banner ----
-            if (unpermittedPrinters.isNotEmpty() || !hasNotifPermission || !isBatteryExempt) {
+            if (unpermittedPrinters.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -210,14 +169,14 @@ fun DashboardScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Outlined.Security,
+                                imageVector = Icons.Outlined.Usb,
                                 contentDescription = null,
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.error
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Permissions & Device Access",
+                                text = "USB Printer Access",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -257,75 +216,6 @@ fun DashboardScreen(
                             }
                         }
 
-                        if (!hasNotifPermission) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Outlined.Notifications, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "Notifications",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            text = "Required for CUPS foreground print service",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                }
-                                Button(
-                                    onClick = {
-                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                            notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                        }
-                                    }
-                                ) {
-                                    Text("Allow")
-                                }
-                            }
-                        }
-
-                        if (!isBatteryExempt) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    modifier = Modifier.weight(1f),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Outlined.BatteryAlert, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "Background Execution",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            text = "Exempt from battery optimization for 24/7 server",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                }
-                                Button(
-                                    onClick = {
-                                        PermissionManager.requestIgnoreBatteryOptimization(context)
-                                    }
-                                ) {
-                                    Text("Exempt")
-                                }
-                            }
-                        }
                     }
                 }
             }

@@ -60,6 +60,12 @@ class MainActivity : ComponentActivity() {
         // 1. Request Notification Permission (Android 13+)
         requestNotificationPermission()
 
+        // 1b. Request battery-optimization exemption the same way — both are needed for the
+        // foreground print service to stay alive, so both should be asked for consistently at
+        // first launch rather than only one of them, with the other left to a Settings button
+        // the user may never find.
+        requestBatteryOptimizationExemption()
+
         // 2. Check and request USB Permissions for attached printers
         com.cuppa.app.util.UsbPermissionHelper.checkAndRequestAllPrinters(this)
 
@@ -118,6 +124,12 @@ class MainActivity : ComponentActivity() {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        if (!com.cuppa.app.util.PermissionManager.isBatteryOptimizationIgnored(this)) {
+            com.cuppa.app.util.PermissionManager.requestIgnoreBatteryOptimization(this)
         }
     }
 
