@@ -1,54 +1,51 @@
 # Cuppa
 
-A native Android CUPS print server — no cloud, no WebView, no vendor lock-in. Cuppa turns your
-Android phone into a local IPP Everywhere / AirPrint / Mopria-compatible driverless print server,
-so any Mac, Windows PC, iPhone, or iPad on the same network can discover and print to a printer
-connected to (or reachable from) your phone without installing a driver.
+I built Cuppa to turn my Android phone into a real local print server. No cloud account. No
+WebView. No vendor app locking you into one printer brand. It hosts a real CUPS based IPP server
+right on the phone. Any Mac, Windows PC, iPhone, or iPad on the same network can find it and print
+to it like a normal network printer. No driver install needed on the other end.
 
 ## What it does
 
-- **Driverless network printing (IPP Everywhere / AirPrint / Mopria).** Cuppa hosts a real CUPS-based
-  IPP server on your phone and advertises it over mDNS/Bonjour, so it shows up automatically in the
-  system print dialog on macOS, Windows, iOS, and Linux — the same way a real network printer would.
-- **USB thermal & label printer support.** Native ESC/POS, ZPL, EPL2, and TSPL drivers, calibrated
-  against real hardware (e.g. the Rollo X1038), with configurable darkness, print speed, dithering
-  algorithm, and print polarity.
-- **Network printer passthrough.** Add any existing IPP/AirPrint network printer (e.g. an inkjet or
-  laser office printer) to Cuppa's queue, with automatic PDF → PWG-Raster conversion for printers
-  without an onboard PDF interpreter.
-- **TLS/IPPS.** Optional encrypted printing for devices connecting to Cuppa, using a self-signed
-  certificate generated on first use.
-- **Persistent job history.** The Jobs tab tracks active and completed/failed print jobs, including
-  jobs Cuppa dispatches as a client (Test Print) and jobs relayed from other devices printing to it.
-- **Material 3 native UI.** Built entirely in Jetpack Compose — no WebView, no embedded browser.
+- Driverless network printing. IPP Everywhere, AirPrint, Mopria. Cuppa advertises itself over mDNS
+  so it just shows up in the system print dialog on macOS, Windows, iOS, and Linux.
+- USB thermal and label printer support. Native ESC/POS, ZPL, EPL2, and TSPL drivers. Calibrated
+  against real hardware including the Rollo X1038. Darkness, speed, dithering, and polarity are
+  real settings that actually apply to the printed output.
+- Network printer passthrough. Add any existing IPP or AirPrint printer to Cuppa's queue. Converts
+  PDF to PWG-Raster automatically for printers that don't have an onboard PDF interpreter.
+- TLS and IPPS. Optional encrypted printing. Self-signed cert generated on first use.
+- Persistent job history. The Jobs tab shows active and finished jobs, both jobs Cuppa sends out
+  and jobs other devices send to it.
+- Native Material 3 UI. Built in Jetpack Compose. No WebView anywhere.
 
 ## Architecture
 
-Cuppa embeds a ported CUPS 2.2.9 client library (`libcups`) compiled for Android via the NDK, plus a
-statically-linked OpenSSL build for real TLS support (client and server side). The native layer
-handles IPP protocol logic and PDF→PWG-Raster conversion; the Kotlin/Compose layer handles the UI,
-mDNS advertising (via Android's `NsdManager`), USB device I/O, and job dispatch.
+Cuppa embeds a ported CUPS 2.2.9 client library compiled for Android through the NDK, plus a
+statically linked OpenSSL build for real TLS on both the client and server side. The native layer
+handles IPP protocol logic and PDF to PWG-Raster conversion. The Kotlin and Compose layer handles
+the UI, mDNS advertising through Android's NsdManager, USB device I/O, and job dispatch.
 
-- `app/` — the Android application: UI, services, printer/job management, thermal drivers' dispatch
-  logic, network discovery.
-- `cups-core/` — the native CUPS engine module: ported `libcups` C sources, JNI bridge, thermal
-  printer command-language encoders (ESC/POS, ZPL, EPL2, TSPL, PCL).
+- `app/` is the Android application. UI, services, printer and job management, thermal driver
+  dispatch, network discovery.
+- `cups-core/` is the native CUPS engine module. Ported libcups C sources, JNI bridge, thermal
+  printer command language encoders (ESC/POS, ZPL, EPL2, TSPL, PCL).
 
 ## Requirements
 
 - Android 8.0 (API 26) or later.
-- A local network (Wi-Fi) shared with the devices you want to print from.
+- A local Wi-Fi network shared with whatever you're printing from.
 
-## Installation
+## Installing
 
-Download the latest release APK from the [Releases](../../releases) page, or track updates
-automatically with [Obtainium](https://github.com/ImranR98/Obtainium) by adding this repository as
-an app source. Cuppa also includes an in-app updater under Settings that can check for and install
-new releases directly.
+Grab the latest APK from the [Releases](../../releases) page. Or point
+[Obtainium](https://github.com/ImranR98/Obtainium) at this repo and let it track new releases for
+you. Cuppa also has its own in-app updater under Settings that can check for and install new
+releases directly, no separate app needed.
 
-Since releases aren't distributed through the Play Store, Android will ask you to allow installs
-from Cuppa (or your browser/file manager) the first time you install or update it — this is normal
-for APKs distributed outside a store.
+Since this isn't on the Play Store, Android will ask you to allow installs from wherever you're
+installing it (Cuppa itself, your browser, your file manager). That's normal for APKs distributed
+outside a store.
 
 ## Building from source
 
@@ -58,13 +55,21 @@ cd Cuppa
 ./gradlew :app:assembleDebug
 ```
 
-Requires the Android NDK (native CUPS/OpenSSL build) — installed automatically via Gradle if you
-have the Android SDK's NDK component available, or install it through Android Studio's SDK Manager.
+You need the Android NDK for the native CUPS and OpenSSL build. Gradle installs it automatically
+if the SDK's NDK component is available. Otherwise grab it through Android Studio's SDK Manager.
 
-A release build additionally needs a signing keystore — copy `keystore.properties.example` to
-`keystore.properties` and fill in your own keystore details (this file is gitignored).
+A release build also needs a signing keystore. Copy `keystore.properties.example` to
+`keystore.properties` and fill in your own values. That file is gitignored so it never leaves your
+machine.
+
+## Releasing
+
+Pushing a tag like `v1.2.3` triggers GitHub Actions to build a signed release APK and publish it
+automatically. See `.github/workflows/release.yml`. The signing keystore never touches the repo.
+It gets decoded from a base64 secret at build time. versionCode and versionName come straight from
+the tag so there's no manual version bump before tagging.
 
 ## License
 
-See individual source headers — the ported CUPS sources retain their original Apache 2.0 licensing
-from the AOSP/CUPS project.
+Check the individual source headers. The ported CUPS sources keep their original Apache 2.0
+licensing from the AOSP/CUPS project.
