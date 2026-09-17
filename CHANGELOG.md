@@ -3,6 +3,13 @@
 All notable changes to Cuppa are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.2] — 2026-09-17
+
+### Fixed
+- Install button in the update dialog not enabling after granting the install-unknown-apps
+  permission until the dialog was closed and reopened. Same root cause as the 0.5.1 permission
+  fixes: no resume-driven refresh for a system setting with no result callback.
+
 ## [0.5.1] — 2026-09-17
 
 ### Fixed
