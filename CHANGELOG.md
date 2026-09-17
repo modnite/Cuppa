@@ -3,6 +3,24 @@
 All notable changes to Cuppa are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.1] — 2026-09-17
+
+### Fixed
+- Battery optimization exemption status not refreshing until a second tap — the "Exempt" button
+  re-checked the system status synchronously right after firing the (asynchronous) system intent,
+  before the dialog had even appeared, and separately `PowerManager.isIgnoringBatteryOptimizations()`
+  can lag briefly behind the dialog's own confirmation on some devices' battery management layers.
+- Notification permission status on the Dashboard not refreshing after granting it via the
+  app-launch prompt (it was only ever updated by a separate, unrelated request path).
+
+### Changed
+- Consolidated permission granting to one place: both notification and battery-optimization
+  exemption are now requested automatically at app launch, and Settings is the only remaining
+  place with grant buttons/status — removed the Dashboard's duplicate (and, as above,
+  independently buggy) notification/battery banner sections.
+- Replaced the large, mostly-empty collapsing app bar on all four tabs with a compact one, since
+  none of the screens used the extra header space for anything beyond a plain title.
+
 ## [0.5.0] — 2026-09-17
 
 ### Added
