@@ -49,9 +49,11 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +64,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.cuppa.app.data.ServerState
 import com.cuppa.app.ui.theme.ServerRunning
 import com.cuppa.app.ui.theme.ServerStopped
@@ -130,6 +137,28 @@ fun DashboardScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasNotifPermission = granted
+    }
+
+    // Battery-optimization exemption has no result-callback API (unlike the notification
+    // permission launcher above) — the request intent is fire-and-forget, so re-checking right
+    // after starting it (as this used to do) always reads the pre-grant value since the system
+    // dialog hasn't even appeared yet. Re-check on resume instead, with a delayed second check
+    // since PowerManager.isIgnoringBatteryOptimizations() can lag briefly behind the dialog's
+    // own confirmation (most noticeable on Samsung's battery management layer).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val permScope = rememberCoroutineScope()
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isBatteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
+                permScope.launch {
+                    delay(700)
+                    isBatteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Column(
@@ -285,7 +314,6 @@ fun DashboardScreen(
                                 Button(
                                     onClick = {
                                         PermissionManager.requestIgnoreBatteryOptimization(context)
-                                        isBatteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
                                     }
                                 ) {
                                     Text("Exempt")
