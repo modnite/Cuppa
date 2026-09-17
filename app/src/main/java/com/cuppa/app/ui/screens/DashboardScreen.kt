@@ -145,11 +145,17 @@ fun DashboardScreen(
     // dialog hasn't even appeared yet. Re-check on resume instead, with a delayed second check
     // since PowerManager.isIgnoringBatteryOptimizations() can lag briefly behind the dialog's
     // own confirmation (most noticeable on Samsung's battery management layer).
+    //
+    // Notification permission also needs a resume-driven re-check despite having its own
+    // launcher above: MainActivity.onCreate() fires its own separate auto-request at app
+    // launch (using a different launcher that only logs the result), so a grant from that
+    // launch-time toast never reaches this composable's hasNotifPermission at all otherwise.
     val lifecycleOwner = LocalLifecycleOwner.current
     val permScope = rememberCoroutineScope()
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                hasNotifPermission = PermissionManager.hasNotificationPermission(context)
                 isBatteryExempt = PermissionManager.isBatteryOptimizationIgnored(context)
                 permScope.launch {
                     delay(700)
