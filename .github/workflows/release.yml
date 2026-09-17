@@ -30,8 +30,10 @@ jobs:
           distribution: "temurin"
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # ubuntu-latest already ships with the Android SDK and sdkmanager preinstalled
+      # ($ANDROID_HOME is preset) — no third-party setup action needed.
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null || true
 
       - name: Install NDK
         run: sdkmanager --install "ndk;28.2.13676358"
