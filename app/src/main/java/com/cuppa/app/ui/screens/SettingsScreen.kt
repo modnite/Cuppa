@@ -1112,11 +1112,20 @@ private fun AboutDialog(onDismiss: () -> Unit) {
 
                 InfoRow("App Version:", "${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})")
                 InfoRow("CUPS Engine:", CupsEngine.getVersion())
-                InfoRow("Device Architecture:", Build.SUPPORTED_ABIS.firstOrNull() ?: "Unknown")
-                InfoRow("Android Version:", "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-                InfoRow("Device Model:", "${Build.MANUFACTURER} ${Build.MODEL}")
-                InfoRow("Root Capability:", if (RootHelper.isRootAvailable()) "Available" else "Not available")
-                InfoRow("Shizuku Status:", ShizukuHelper.getVersion())
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                val context = LocalContext.current
+                Text(
+                    text = "github.com/modnite/Cuppa",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/modnite/Cuppa"))
+                        )
+                    }
+                )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 

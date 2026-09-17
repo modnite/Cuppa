@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.4] - 2026-09-17
+
+### Changed
+- About Cuppa now links straight to the GitHub repo.
+- Cleaned device/root/Shizuku diagnostics out of the About dialog. That info still lives in
+  Logging & Diagnostics, where it's actually useful.
+
 ## [0.5.3] - 2026-09-17
 
 ### Changed
