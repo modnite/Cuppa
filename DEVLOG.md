@@ -91,7 +91,7 @@ notifications. Granted battery exemption. The UI just sat there showing the old 
 tapped it again. Turned out Dashboard and Settings each had their own half-working copy of the
 same permission-check logic. Fixed it in one place and it was still broken in the other. Ripped
 both out and replaced them with one version. Both permissions get requested automatically at
-launch now. No hunting for a button. Settings is the only place left that shows status.
+launch now, so there's nothing left to hunt for. Settings is the only place left that shows status.
 
 While I was in there I also finally asked out loud why every tab had this huge dead gap under the
 title. Answer: a collapsing app bar that was never actually being used for anything it's meant for.

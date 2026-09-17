@@ -1,9 +1,18 @@
 # Cuppa
 
-I built Cuppa to turn my Android phone into a real local print server. No cloud account. No
-WebView. No vendor app locking you into one printer brand. It hosts a real CUPS based IPP server
-right on the phone. Any Mac, Windows PC, iPhone, or iPad on the same network can find it and print
-to it like a normal network printer. No driver install needed on the other end.
+I built Cuppa to turn my Android phone into a real local print server. There's no cloud account,
+no WebView, and no vendor app locking you into one printer brand. It hosts a real CUPS based IPP
+server right on the phone. Any Mac, Windows PC, iPhone, or iPad on the same network can find it
+and print to it like a normal network printer, with no driver install needed on the other end.
+
+## Screenshots
+
+<p float="left">
+  <img src="docs/screenshots/dashboard.png" width="200" alt="Dashboard" />
+  <img src="docs/screenshots/printers.png" width="200" alt="Printers" />
+  <img src="docs/screenshots/jobs.png" width="200" alt="Jobs" />
+  <img src="docs/screenshots/settings.png" width="200" alt="Settings" />
+</p>
 
 ## What it does
 

@@ -3,6 +3,12 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.3] - 2026-09-17
+
+### Changed
+- New app icon. Printer and coffee cup artwork, drawn by me, replaces the old placeholder icon.
+- Added real screenshots to the README.
+
 ## [0.5.2] - 2026-09-17
 
 ### Fixed
