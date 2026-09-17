@@ -1,0 +1,49 @@
+*PPD-Adobe: "4.3"
+*% PPD file for Star Micronics Line Mode Receipt Printers
+*FormatVersion: "4.3"
+*FileVersion: "1.0"
+*LanguageVersion: English
+*LanguageEncoding: ISOLatin1
+*PCFileName: "STARLINE.PPD"
+*Manufacturer: "Star"
+*Product: "(Star Line Mode Receipt)"
+*ModelName: "Star TSP100 / TSP650 Line Mode"
+*ShortNickName: "Star TSP"
+*NickName: "Star Micronics Line Mode Receipt Printer"
+*PSVersion: "(3010.000) 0"
+*LanguageLevel: "3"
+*ColorDevice: False
+*DefaultColorSpace: Gray
+*FileSystem: False
+*Throughput: "1"
+
+*OpenUI *Resolution/Resolution: PickOne
+*OrderDependency: 10 AnySetup *Resolution
+*DefaultResolution: 203dpi
+*Resolution 203dpi/203 DPI: "<</HWResolution[203 203]>>setpagedevice"
+*CloseUI: *Resolution
+
+*OpenUI *PageSize/Roll Paper: PickOne
+*OrderDependency: 10 AnySetup *PageSize
+*DefaultPageSize: Roll80mm
+*PageSize Roll80mm/80mm Roll: "<</PageSize[227 842]/ImagingBBox null>>setpagedevice"
+*PageSize Roll58mm/58mm Roll: "<</PageSize[164 842]/ImagingBBox null>>setpagedevice"
+*CloseUI: *PageSize
+
+*OpenUI *PageRegion: PickOne
+*OrderDependency: 10 AnySetup *PageRegion
+*DefaultPageRegion: Roll80mm
+*PageRegion Roll80mm/80mm Roll: "<</PageSize[227 842]/ImagingBBox null>>setpagedevice"
+*PageRegion Roll58mm/58mm Roll: "<</PageSize[164 842]/ImagingBBox null>>setpagedevice"
+*CloseUI: *PageRegion
+
+*DefaultImageableArea: Roll80mm
+*ImageableArea Roll80mm/80mm Roll: "0 0 227 842"
+*ImageableArea Roll58mm/58mm Roll: "0 0 164 842"
+
+*DefaultPaperDimension: Roll80mm
+*PaperDimension Roll80mm/80mm Roll: "227 842"
+*PaperDimension Roll58mm/58mm Roll: "164 842"
+
+*cupsFilter: "application/vnd.cups-raster 0 rastertostar"
+*% End of PPD

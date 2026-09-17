@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cuppa launcher foreground: stylized printer/cup icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Printer body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,42 L74,42 C76.2,42 78,43.8 78,46 L78,58 C78,60.2 76.2,62 74,62 L34,62 C31.8,62 30,60.2 30,58 L30,46 C30,43.8 31.8,42 34,42 Z" />
+
+    <!-- Paper tray (top) -->
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M38,42 L38,34 C38,32.9 38.9,32 40,32 L68,32 C69.1,32 70,32.9 70,34 L70,42 Z" />
+
+    <!-- Output tray (bottom) -->
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M36,62 L36,68 C36,69.1 36.9,70 38,70 L70,70 C71.1,70 72,69.1 72,68 L72,62 Z" />
+
+    <!-- Printed paper -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,62 L40,66 L68,66 L68,62 Z" />
+
+    <!-- Paper lines (text simulation) -->
+    <path
+        android:strokeColor="#BDBDBD"
+        android:strokeWidth="1"
+        android:pathData="M44,64 L64,64" />
+
+    <!-- Status light -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M72,48 C72,49.1 71.1,50 70,50 C68.9,50 68,49.1 68,48 C68,46.9 68.9,46 70,46 C71.1,46 72,46.9 72,48 Z" />
+</vector>

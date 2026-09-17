@@ -1,0 +1,58 @@
+*PPD-Adobe: "4.3"
+*% PPD file for Zebra ZPL Label Printers (ZD420, GK420d, GX430t)
+*FormatVersion: "4.3"
+*FileVersion: "1.0"
+*LanguageVersion: English
+*LanguageEncoding: ISOLatin1
+*PCFileName: "ZEBRAZPL.PPD"
+*Manufacturer: "Zebra"
+*Product: "(ZPL Label Printer)"
+*ModelName: "Zebra ZPL Label Printer"
+*ShortNickName: "Zebra ZPL"
+*NickName: "Zebra ZPL II Thermal Label Printer"
+*PSVersion: "(3010.000) 0"
+*LanguageLevel: "3"
+*ColorDevice: False
+*DefaultColorSpace: Gray
+*FileSystem: False
+*Throughput: "1"
+
+*OpenUI *Resolution/Resolution: PickOne
+*OrderDependency: 10 AnySetup *Resolution
+*DefaultResolution: 203dpi
+*Resolution 203dpi/203 DPI: "<</HWResolution[203 203]>>setpagedevice"
+*Resolution 300dpi/300 DPI: "<</HWResolution[300 300]>>setpagedevice"
+*CloseUI: *Resolution
+
+*OpenUI *PageSize/Media Size: PickOne
+*OrderDependency: 10 AnySetup *PageSize
+*DefaultPageSize: w288h432
+*PageSize w288h432/4x6 Shipping Label: "<</PageSize[288 432]/ImagingBBox null>>setpagedevice"
+*PageSize w288h288/4x4 Label: "<</PageSize[288 288]/ImagingBBox null>>setpagedevice"
+*PageSize w162h90/2.25x1.25 Address Label: "<</PageSize[162 90]/ImagingBBox null>>setpagedevice"
+*PageSize w216h72/3x1 Barcode Label: "<</PageSize[216 72]/ImagingBBox null>>setpagedevice"
+*CloseUI: *PageSize
+
+*OpenUI *PageRegion: PickOne
+*OrderDependency: 10 AnySetup *PageRegion
+*DefaultPageRegion: w288h432
+*PageRegion w288h432/4x6 Shipping Label: "<</PageSize[288 432]/ImagingBBox null>>setpagedevice"
+*PageRegion w288h288/4x4 Label: "<</PageSize[288 288]/ImagingBBox null>>setpagedevice"
+*PageRegion w162h90/2.25x1.25 Address Label: "<</PageSize[162 90]/ImagingBBox null>>setpagedevice"
+*PageRegion w216h72/3x1 Barcode Label: "<</PageSize[216 72]/ImagingBBox null>>setpagedevice"
+*CloseUI: *PageRegion
+
+*DefaultImageableArea: w288h432
+*ImageableArea w288h432/4x6 Shipping Label: "0 0 288 432"
+*ImageableArea w288h288/4x4 Label: "0 0 288 288"
+*ImageableArea w162h90/2.25x1.25 Address Label: "0 0 162 90"
+*ImageableArea w216h72/3x1 Barcode Label: "0 0 216 72"
+
+*DefaultPaperDimension: w288h432
+*PaperDimension w288h432/4x6 Shipping Label: "288 432"
+*PaperDimension w288h288/4x4 Label: "288 288"
+*PaperDimension w162h90/2.25x1.25 Address Label: "162 90"
+*PaperDimension w216h72/3x1 Barcode Label: "216 72"
+
+*cupsFilter: "application/vnd.cups-raster 0 rastertozpl"
+*% End of PPD

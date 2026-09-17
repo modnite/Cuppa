@@ -1,0 +1,30 @@
+# Signing — never commit these
+*.jks
+*.keystore
+keystore.properties
+
+# Gradle / build outputs
+.gradle/
+.kotlin/
+build/
+*/build/
+*.apk
+*.aab
+
+# Native build intermediates (CMake/NDK)
+.cxx/
+*/.cxx/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
