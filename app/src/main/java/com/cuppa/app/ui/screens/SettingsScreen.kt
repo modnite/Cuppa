@@ -1147,6 +1147,23 @@ private fun UpdateDialog(onDismiss: () -> Unit) {
     var isChecking by remember { mutableStateOf(false) }
     var checkError by remember { mutableStateOf<String?>(null) }
     var autoCheckEnabled by remember { mutableStateOf(com.cuppa.app.update.UpdateManager.isAutoCheckEnabled(context)) }
+    var canInstallPackages by remember { mutableStateOf(com.cuppa.app.update.UpdateManager.canInstallPackages(context)) }
+
+    // Same class of bug as the battery-optimization/notification permission checks: granting
+    // "install unknown apps" happens in a separate system Settings screen with no result
+    // callback, so re-checking canInstallPackages() only on resume (not just once at first
+    // composition) is what actually makes the Install button unlock without closing and
+    // reopening this dialog.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                canInstallPackages = com.cuppa.app.update.UpdateManager.canInstallPackages(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1249,7 +1266,7 @@ private fun UpdateDialog(onDismiss: () -> Unit) {
                     is com.cuppa.app.update.DownloadState.ReadyToInstall -> {
                         Text("Download complete — ready to install.", fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(12.dp))
-                        if (!com.cuppa.app.update.UpdateManager.canInstallPackages(context)) {
+                        if (!canInstallPackages) {
                             Text(
                                 "Cuppa needs permission to install unknown apps first.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -1266,7 +1283,7 @@ private fun UpdateDialog(onDismiss: () -> Unit) {
                         }
                         Button(
                             onClick = { com.cuppa.app.update.UpdateManager.installApk(context, ds.file) },
-                            enabled = com.cuppa.app.update.UpdateManager.canInstallPackages(context),
+                            enabled = canInstallPackages,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Install")
