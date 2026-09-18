@@ -269,6 +269,21 @@ fun TestPrintSheet(
                             )
                     }
 
+                    // Driverless USB printers (IPP-over-USB) take the PDF as a real job and report how
+                    // it ended. Anything else falls through to raw bytes below.
+                    val ippUsb = if (selectedFormat == TestPrintFormat.PDF) {
+                        usbBackend.printViaIppUsb(dev, bytesToSend, "Cuppa test page", 1, colorMode)
+                    } else null
+                    if (ippUsb != null) {
+                        if (ippUsb.isSuccess) {
+                            printSuccessMessage = "✓ ${ippUsb.getOrNull()} (${if (colorMode) "color" else "black and white"})"
+                            CuppaLog.i("TestPrintSheet", "IPP-over-USB print: ${ippUsb.getOrNull()}")
+                            return@launch
+                        } else {
+                            throw ippUsb.exceptionOrNull() ?: Exception("IPP-over-USB print failed")
+                        }
+                    }
+
                     val sendResult = usbBackend.sendRawBytes(dev, bytesToSend)
                     if (sendResult.isSuccess) {
                         printSuccessMessage = "✓ Printed successfully! Sent ${sendResult.getOrNull()} bytes via USB bulk transfer."
@@ -549,7 +564,7 @@ fun TestPrintSheet(
 
             // Color Mode toggle — only meaningful for the PDF/PWG-Raster path; thermal/USB
             // formats (ESC/POS, ZPL, TSPL, EPL) are inherently monochrome already.
-            if (!isUsb && selectedFormat == TestPrintFormat.PDF) {
+            if (selectedFormat == TestPrintFormat.PDF) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "Color Mode",

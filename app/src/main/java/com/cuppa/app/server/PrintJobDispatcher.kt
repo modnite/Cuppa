@@ -135,6 +135,16 @@ class PrintJobDispatcher(
                 rawBytes[2] == 'D'.code.toByte() &&
                 rawBytes[3] == 'F'.code.toByte()
 
+        if (isPdf) {
+            // Driverless USB printers take the PDF as a real IPP job and report how it ended.
+            val monochrome = job.options.lineSequence().any { it == "print-color-mode=monochrome" }
+            val viaIpp = usbBackend.printViaIppUsb(device, rawBytes, job.jobName, job.copies.coerceAtLeast(1), !monochrome)
+            if (viaIpp != null) {
+                Log.i(TAG, "IPP-over-USB result for job #${job.jobId}: ${viaIpp.getOrNull() ?: viaIpp.exceptionOrNull()?.message}")
+                return viaIpp.isSuccess
+            }
+        }
+
         return if (isPdf) {
             renderAndPrintPdfToUsb(device, printer, spoolFile, job.copies.coerceAtLeast(1))
         } else {

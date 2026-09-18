@@ -7,6 +7,25 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: The DeskJet and IPP over USB
+
+Tried my dad's HP DeskJet over USB. Every job went through with no error and nothing printed.
+The USB dump explained it. The printer has three ways in. A vendor one, a plain printer one and
+a third labelled IPP over USB. Cuppa was picking the wrong one and speaking a language the
+printer does not understand. HP printers like this one are driverless. The right way in is the
+IPP over USB interface. It carries normal web requests, so Cuppa can send the same PDF or raster
+it would send to a network printer.
+
+Building it went wrong in three boring ways. The first read failed instantly because Android
+rejects reads over 16KB. Then my installs to the phone kept stalling and I blamed the phone for
+waiting on a prompt when it was the adb connection name that kept dropping. Connecting by IP
+address fixed it. The upload took less than a second.
+
+Black and white printed. Color printed with colors missing. The printer may be low on ink. I am
+not sure yet.
+
+Cuppa also asks the printer how a job ended now. Raw USB writes can only say the bytes left.
+
 ## 2026-09-18: Home and the Epson
 
 Got home and tried the Epson through Cuppa from my phone. It failed. The log took one look. The

@@ -211,6 +211,119 @@ class UsbPrinterBackend(private val context: Context) {
     }
 
     /**
+     * Prints a PDF through the printer's IPP-over-USB interface, the way a driverless printer
+     * expects. Returns null when this printer or document does not fit that path (no such
+     * interface, or not a PDF), so the caller can fall back to raw bytes. Otherwise the result
+     * reflects what the printer itself reported, not just whether the bytes left the phone.
+     *
+     * @param color false renders and requests black and white.
+     */
+    suspend fun printViaIppUsb(
+        device: UsbDevice,
+        document: ByteArray,
+        jobName: String,
+        copies: Int = 1,
+        color: Boolean = true
+    ): Result<String>? = withContext(Dispatchers.IO) {
+        val manager = usbManager ?: return@withContext null
+        val ch = IppOverUsb.findChannel(device) ?: return@withContext null
+        val isPdf = document.size > 4 && document[0] == '%'.code.toByte() && document[1] == 'P'.code.toByte() &&
+            document[2] == 'D'.code.toByte() && document[3] == 'F'.code.toByte()
+        if (!isPdf) return@withContext null
+        if (!manager.hasPermission(device)) {
+            return@withContext Result.failure(SecurityException("USB permission is not granted for ${device.safeDescription()}"))
+        }
+
+        val caps = IppOverUsb.exchange(
+            manager, device, ch,
+            IppOverUsb.Request(0x000B)
+                .string(0x42, "requesting-user-name", "cuppa")
+                .string(0x44, "requested-attributes", "document-format-supported")
+                .more(0x44, "pwg-raster-document-type-supported")
+                .more(0x44, "pwg-raster-document-resolution-supported")
+                .more(0x44, "print-color-mode-supported")
+                .build()
+        ).getOrElse { return@withContext Result.failure(it) }
+        val formats = caps.attrs["document-format-supported"].orEmpty()
+        val rasterTypes = caps.attrs["pwg-raster-document-type-supported"].orEmpty()
+        CuppaLog.i(TAG, "IPP-over-USB printer formats=$formats rasterTypes=$rasterTypes")
+
+        var payload = document
+        var format = "application/pdf"
+        var copiesInFile = false
+        var temp: java.io.File? = null
+        var raster: java.io.File? = null
+        try {
+            if ("application/pdf" !in formats) {
+                if ("image/pwg-raster" !in formats) return@withContext null
+                temp = java.io.File.createTempFile("ippusb", ".pdf", context.cacheDir).also { it.writeBytes(document) }
+                raster = java.io.File.createTempFile("ippusb", ".ras", context.cacheDir)
+                val useColor = color && "srgb_8" in rasterTypes
+                val ok = com.cuppa.app.server.PwgRasterConverter.convertAllPagesToPwgRaster(temp, raster, useColor, copies)
+                if (!ok) return@withContext Result.failure(IOException("Could not convert the document to raster"))
+                payload = raster.readBytes()
+                format = "image/pwg-raster"
+                copiesInFile = true
+            }
+
+            val req = IppOverUsb.Request(0x0002, 2)
+                .string(0x42, "requesting-user-name", "cuppa")
+                .string(0x42, "job-name", jobName.ifBlank { "Cuppa" })
+                .string(0x49, "document-format", format)
+                .group(0x02)
+            if (copies > 1 && !copiesInFile) req.integer(0x21, "copies", copies)
+            req.string(0x44, "print-color-mode", if (color) "color" else "monochrome")
+
+            CuppaLog.i(TAG, "IPP-over-USB Print-Job: ${payload.size} bytes as $format, copies=$copies, color=$color")
+            val resp = IppOverUsb.exchange(manager, device, ch, req.build(payload)).getOrElse { return@withContext Result.failure(it) }
+            if (resp.status >= 0x0100) {
+                // Some printers reject an attribute they do not know. Send once more without ours.
+                CuppaLog.w(TAG, "Printer answered 0x${Integer.toHexString(resp.status)}, retrying without job options")
+                val plain = IppOverUsb.Request(0x0002, 3)
+                    .string(0x42, "requesting-user-name", "cuppa")
+                    .string(0x42, "job-name", jobName.ifBlank { "Cuppa" })
+                    .string(0x49, "document-format", format)
+                val retry = IppOverUsb.exchange(manager, device, ch, plain.build(payload)).getOrElse { return@withContext Result.failure(it) }
+                if (retry.status >= 0x0100) {
+                    return@withContext Result.failure(IOException("Printer rejected the job (IPP 0x${Integer.toHexString(retry.status)})"))
+                }
+                return@withContext Result.success("accepted (job options ignored)")
+            }
+            val jobId = resp.attrs["job-id"]?.firstOrNull()?.toIntOrNull()
+            CuppaLog.i(TAG, "Printer accepted the job, job-id=$jobId")
+
+            // Ask the printer how the job ended instead of assuming.
+            if (jobId != null) {
+                val deadline = System.currentTimeMillis() + 90_000
+                while (System.currentTimeMillis() < deadline) {
+                    delay(2000)
+                    val st = IppOverUsb.exchange(
+                        manager, device, ch,
+                        IppOverUsb.Request(0x0009, 4)
+                            .integer(0x21, "job-id", jobId)
+                            .string(0x44, "requested-attributes", "job-state")
+                            .more(0x44, "job-state-reasons")
+                            .build()
+                    ).getOrNull() ?: continue
+                    val state = st.attrs["job-state"]?.firstOrNull()?.toIntOrNull()
+                    val reasons = st.attrs["job-state-reasons"].orEmpty()
+                    CuppaLog.i(TAG, "Job $jobId state=$state reasons=$reasons")
+                    when (state) {
+                        9 -> return@withContext Result.success("printed (job $jobId)")
+                        7, 8 -> return@withContext Result.failure(IOException("Printer ended the job: state $state ${reasons.joinToString()}"))
+                    }
+                }
+            }
+            Result.success("accepted by printer")
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            temp?.delete()
+            raster?.delete()
+        }
+    }
+
+    /**
      * Ask a Rollo-family printer for its real-time hardware status with `<ESC>!?` and read the
      * one status byte back over bulk IN. Protocol recovered from an earlier from-scratch
      * reverse-engineering pass on a real Rollo X1038 (VID 0x09C5 / PID 0x0588):

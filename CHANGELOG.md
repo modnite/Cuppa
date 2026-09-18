@@ -3,6 +3,19 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.8] - 2026-09-19
+
+### Added
+- Driverless USB printers work. Cuppa uses the printer's IPP-over-USB interface, asks what
+  formats it takes and sends PDF or PWG-Raster as a normal job. Tested on an HP DeskJet 2700.
+- USB jobs report how they ended. Cuppa asks the printer for the job state and only marks the job
+  completed when the printer says it is. A raw USB write can only say the bytes left the phone.
+- Test Print shows the Color / Black & white choice for USB printers too.
+
+### Fixed
+- HP DeskJet jobs over USB were accepted and printed nothing. Cuppa was writing to the wrong
+  interface with a printer language the model does not speak.
+
 ## [0.6.7] - 2026-09-19
 
 ### Fixed
