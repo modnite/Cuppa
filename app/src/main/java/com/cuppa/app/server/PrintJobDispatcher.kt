@@ -252,11 +252,17 @@ class PrintJobDispatcher(
         val supportsPwgRaster = printer.supportedFormats.any { it.equals("image/pwg-raster", ignoreCase = true) }
         val supportsPdf = printer.supportedFormats.any { it.equals("application/pdf", ignoreCase = true) }
 
+        // Print quality, sides, color mode and so on as the client asked for them.
+        val jobOptions = job.options.lineSequence()
+            .mapNotNull { line -> line.indexOf('=').takeIf { it > 0 }?.let { line.substring(0, it) to line.substring(it + 1) } }
+            .toMap()
+        val monochrome = jobOptions["print-color-mode"].equals("monochrome", ignoreCase = true)
+
         var fileToSend = spoolFile
         var convertedFile: File? = null
         if (isPdf && supportsPwgRaster && !supportsPdf) {
             val rasterFile = File(spoolFile.parentFile, "${spoolFile.nameWithoutExtension}.ras")
-            if (PwgRasterConverter.convertAllPagesToPwgRaster(spoolFile, rasterFile, printer.colorSupported)) {
+            if (PwgRasterConverter.convertAllPagesToPwgRaster(spoolFile, rasterFile, printer.colorSupported && !monochrome)) {
                 fileToSend = rasterFile
                 convertedFile = rasterFile
                 Log.i(TAG, "Converted job #${job.jobId} PDF to PWG-Raster for ${printer.name}")
@@ -267,12 +273,25 @@ class PrintJobDispatcher(
 
         // The client's copies count travels with the job; the target printer does the duplication.
         val copies = job.copies.coerceAtLeast(1)
-        val resultJobId = CupsEngine.printFile(
+        val copiesOnly = if (copies > 1) mapOf("copies" to copies.toString()) else emptyMap()
+        val title = job.jobName.ifBlank { "Cuppa Network Print" }
+        var resultJobId = CupsEngine.printFile(
             uri = printer.uri,
             filePath = fileToSend.absolutePath,
-            jobTitle = job.jobName.ifBlank { "Cuppa Network Print" },
-            options = if (copies > 1) mapOf("copies" to copies.toString()) else emptyMap()
+            jobTitle = title,
+            options = copiesOnly + jobOptions
         )
+        // A printer can refuse a job over one attribute it does not like. The document and the
+        // copies count matter more than quality or sides, so try again with only the copies.
+        if (resultJobId <= 0 && jobOptions.isNotEmpty()) {
+            Log.w(TAG, "Printer rejected job #${job.jobId} with options $jobOptions, retrying with copies only")
+            resultJobId = CupsEngine.printFile(
+                uri = printer.uri,
+                filePath = fileToSend.absolutePath,
+                jobTitle = title,
+                options = copiesOnly
+            )
+        }
         convertedFile?.delete()
         return resultJobId > 0
     }

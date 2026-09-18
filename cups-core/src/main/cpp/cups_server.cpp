@@ -247,6 +247,27 @@ static std::string percentDecode(const std::string &in) {
 // mDNS "rp" TXT record and the share URI shown in the UI. Printer names routinely contain
 // spaces/parentheses/colons ("USB Printer (0x09C5:0x0588)"), and a URI containing them is invalid:
 // CUPS/macOS reject the whole Get-Printer-Attributes response as bad-request.
+// Job-template attributes the dispatcher passes on to the real printer. Enums arrive as 4-byte
+// integers and everything else here is a keyword string. Anything not listed is dropped rather
+// than forwarded blindly, because a printer may reject a job over an attribute it does not know.
+static std::string collectJobOptions(const IppMessage &req) {
+    static const char *kEnumOptions[] = {"print-quality", "orientation-requested"};
+    static const char *kKeywordOptions[] = {"sides", "print-color-mode", "media", "print-scaling"};
+    std::string out;
+    for (const char *name : kEnumOptions) {
+        if (const auto *a = req.findAttribute(name)) {
+            if (a->valueBytes.size() == 4) out += std::string(name) + "=" + std::to_string(a->asInt()) + "\n";
+        }
+    }
+    for (const char *name : kKeywordOptions) {
+        if (const auto *a = req.findAttribute(name)) {
+            std::string v = a->asString();
+            if (!v.empty() && v.find('\n') == std::string::npos) out += std::string(name) + "=" + v + "\n";
+        }
+    }
+    return out;
+}
+
 static std::string sanitizeResourceName(const std::string &name) {
     std::string out;
     out.reserve(name.size());
@@ -734,6 +755,7 @@ std::shared_ptr<IppMessage> CupsServer::handlePrintJob(const IppMessage &req) {
         if (const auto *c = req.findAttribute("copies")) {
             job.copies = std::max<int32_t>(1, std::min<int32_t>(999, c->asInt()));
         }
+        job.options = collectJobOptions(req);
         job.state = 3; // Pending — PrintJobDispatcher (Kotlin) picks this up asynchronously
         job.createdAt = std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -746,8 +768,9 @@ std::shared_ptr<IppMessage> CupsServer::handlePrintJob(const IppMessage &req) {
                 out.write(reinterpret_cast<const char*>(req.documentData.data()), req.documentData.size());
                 out.close();
                 job.spoolFilePath = spoolPath;
-                LOGI("Spooled job #%d (%zu bytes, %d cop%s) to %s", job.jobId, req.documentData.size(),
-                     job.copies, job.copies == 1 ? "y" : "ies", spoolPath.c_str());
+                const auto *fmt = req.findAttribute("document-format");
+                LOGI("Spooled job #%d (%zu bytes, %d cop%s, client format=%s) to %s", job.jobId, req.documentData.size(),
+                     job.copies, job.copies == 1 ? "y" : "ies", fmt ? fmt->asString().c_str() : "(none)", spoolPath.c_str());
             } else {
                 // Accepting a job we cannot store just makes it vanish. Say so to the client.
                 LOGE("Print-Job rejected: could not open spool file %s (errno=%d)", spoolPath.c_str(), errno);
@@ -811,6 +834,7 @@ std::shared_ptr<IppMessage> CupsServer::handleCreateJob(const IppMessage &req) {
         if (const auto *c = req.findAttribute("copies")) {
             job.copies = std::max<int32_t>(1, std::min<int32_t>(999, c->asInt()));
         }
+        job.options = collectJobOptions(req);
         job.state = 4; // Held — awaiting a Send-Document call
         job.awaitingDocument = true;
         job.createdAt = std::chrono::duration_cast<std::chrono::seconds>(
@@ -886,8 +910,12 @@ std::shared_ptr<IppMessage> CupsServer::handleSendDocument(const IppMessage &req
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
     populateJobAttributes(*resp, jobCopy, hostPortForRequest(req));
 
-    LOGI("Send-Document: job #%d received %zu bytes (last=%d, wrote=%d), state=%d",
-         jobId, req.documentData.size(), lastDocument, wroteDoc, jobCopy.state);
+    {
+        const auto *fmt = req.findAttribute("document-format");
+        LOGI("Send-Document: job #%d received %zu bytes (last=%d, wrote=%d), state=%d, client format=%s",
+             jobId, req.documentData.size(), lastDocument, wroteDoc, jobCopy.state,
+             fmt ? fmt->asString().c_str() : "(none)");
+    }
     return resp;
 }
 

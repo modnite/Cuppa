@@ -3,6 +3,21 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.2] - 2026-09-18
+
+### Fixed
+- Printing from a Mac to a Brother did nothing. The Mac sends PWG-Raster. Cuppa passed it on
+  labelled as generic binary data and the Brother refused it. Cuppa now recognizes raster,
+  JPEG and PNG by their first bytes and labels them correctly.
+- Jobs the printer refused were still shown as completed. A rejection from the printer now marks
+  the job failed.
+
+### Added
+- Print quality, sides (duplex), color mode, orientation and media are passed on to network
+  printers. If a printer refuses them the job is sent again with only the copies count.
+- Monochrome jobs are rendered in grayscale when Cuppa converts a PDF to raster itself.
+- USB printers still ignore these options.
+
 ## [0.6.1] - 2026-09-18
 
 ### Fixed

@@ -394,6 +394,14 @@ Java_com_cuppa_cups_CupsEngine_nativePrintFile(
                 documentFormat = "application/pdf";
             } else if (magic[0] == '%' && magic[1] == '!') {
                 documentFormat = "application/postscript";
+            } else if (memcmp(magic, "RaS2", 4) == 0) {
+                documentFormat = "image/pwg-raster";
+            } else if (memcmp(magic, "UNIR", 4) == 0) {
+                documentFormat = "image/urf";
+            } else if ((unsigned char)magic[0] == 0xFF && (unsigned char)magic[1] == 0xD8) {
+                documentFormat = "image/jpeg";
+            } else if ((unsigned char)magic[0] == 0x89 && memcmp(magic + 1, "PNG", 3) == 0) {
+                documentFormat = "image/png";
             }
         }
     }
@@ -430,6 +438,8 @@ Java_com_cuppa_cups_CupsEngine_nativePrintFile(
 
             if (strcmp(keyStr, "copies") == 0) {
                 ippAddInteger(req, IPP_TAG_JOB, IPP_TAG_INTEGER, "copies", atoi(valStr));
+            } else if (strcmp(keyStr, "print-quality") == 0 || strcmp(keyStr, "orientation-requested") == 0) {
+                ippAddInteger(req, IPP_TAG_JOB, IPP_TAG_ENUM, keyStr, atoi(valStr));
             } else {
                 ippAddString(req, IPP_TAG_JOB, IPP_TAG_KEYWORD, keyStr, nullptr, valStr);
             }
@@ -461,7 +471,14 @@ Java_com_cuppa_cups_CupsEngine_nativePrintFile(
             // still real success, so don't report it as a spool failure.
             jobId = 1;
         }
-        LOGI("nativePrintFile: Print-Job response: ipp-status=0x%04x, jobId=%d", (int)ippStatus, jobId);
+        LOGI("nativePrintFile: Print-Job response: ipp-status=0x%04x, jobId=%d, format=%s", (int)ippStatus, jobId, documentFormat);
+        // Some printers hand back a job-id alongside an error status. A job-id is not success.
+        if (ippStatus >= IPP_STATUS_ERROR_BAD_REQUEST) {
+            ipp_attribute_t *msg = ippFindAttribute(resp, "status-message", IPP_TAG_ZERO);
+            LOGE("nativePrintFile: printer rejected the job: 0x%04x %s", (int)ippStatus,
+                 msg ? ippGetString(msg, 0, nullptr) : "");
+            jobId = -(int)ippStatus;
+        }
         ippDelete(resp);
     } else {
         LOGE("nativePrintFile: Print-Job failed: %s", cupsLastErrorString());
@@ -484,7 +501,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
     jmethodID printJobInit = env->GetMethodID(
         printJobCls,
         "<init>",
-        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IJJLjava/lang/String;I)V"
+        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IJJLjava/lang/String;ILjava/lang/String;)V"
     );
 
     std::string uri;
@@ -507,6 +524,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
         long createdAt;
         std::string spoolFilePath;
         int copies = 1;
+        std::string options;
     };
     std::vector<JobData> jobsList;
 
@@ -601,6 +619,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
         jd.createdAt = lj.createdAt;
         jd.spoolFilePath = lj.spoolFilePath;
         jd.copies = lj.copies;
+        jd.options = lj.options;
         jobsList.push_back(jd);
     }
 
@@ -612,6 +631,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
         jstring jUser = env->NewStringUTF(jd.user.c_str());
         jstring jFormat = env->NewStringUTF(jd.format.c_str());
         jstring jSpool = env->NewStringUTF(jd.spoolFilePath.c_str());
+        jstring jOptions = env->NewStringUTF(jd.options.c_str());
 
         jobject jJob = env->NewObject(
             printJobCls,
@@ -625,7 +645,8 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
             (jlong)jd.size,
             (jlong)jd.createdAt,
             jSpool,
-            (jint)jd.copies
+            (jint)jd.copies,
+            jOptions
         );
 
         env->SetObjectArrayElement(resultArr, (jsize)i, jJob);
@@ -635,6 +656,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
         env->DeleteLocalRef(jUser);
         env->DeleteLocalRef(jFormat);
         env->DeleteLocalRef(jSpool);
+        env->DeleteLocalRef(jOptions);
         env->DeleteLocalRef(jJob);
     }
 

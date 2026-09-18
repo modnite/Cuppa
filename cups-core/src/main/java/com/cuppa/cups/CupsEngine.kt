@@ -43,7 +43,9 @@ data class PrintJob(
     val sizeBytes: Long = 0,
     val createdAt: Long = 0,
     val spoolFilePath: String = "",
-    val copies: Int = 1
+    val copies: Int = 1,
+    /** Forwardable job-template attributes from the client, one "name=value" per line. */
+    val options: String = ""
 ) {
     val status: PrintJobStatus
         get() = PrintJobStatus.fromCode(state)

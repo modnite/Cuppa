@@ -7,6 +7,24 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: Mac jobs marked done that never printed
+
+I sent 3 copies from the Mac to the Brother. Cuppa said completed. Nothing came out.
+
+The log had the answer. The Brother replied with a document format error and Cuppa counted the
+job as done anyway because the reply still contained a job number. Two bugs. One was that a job
+number is not success. The other was the format. The Mac sends PWG-Raster and Cuppa only knew how
+to label PDF and PostScript. Everything else went out as generic binary data and the Brother
+would not take it.
+
+I also asked whether quality and duplex settings were being used. They were not. Only the copies
+count was passed on. Now quality, sides, color mode, orientation and media go through. If a
+printer refuses them Cuppa retries with just the copies.
+
+I checked it by making a PWG-Raster file in a Docker container and sending it to the phone with
+CUPS's own `lp`. It went to the Brother labelled correctly and was accepted. I do not have a
+real Mac here so that is the closest I can get.
+
 ## 2026-09-18: 28 copies that vanished
 
 I sent a 28 copy PDF to one of the office Brothers from the normal Android print dialog. Nothing

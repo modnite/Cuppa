@@ -48,6 +48,7 @@ struct PrintJob {
     int64_t createdAt = 0;
     bool awaitingDocument = false; // true between Create-Job and a final Send-Document
     int32_t copies = 1;            // the job's "copies" attribute, honored by the dispatcher
+    std::string options;           // forwardable job-template attributes, one "name=value" per line
 };
 
 class CupsServer {
