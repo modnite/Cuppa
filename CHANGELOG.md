@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.3] - 2026-09-18
+
+### Fixed
+- Mac jobs to the Brother were accepted and then failed inside the printer with a document
+  format error. Cuppa told every client its raster resolution was 203 dpi, which is the Rollo's
+  number. The Brother wants 300 or 600. Printers that take raster now advertise 300 dpi.
+
 ## [0.6.2] - 2026-09-18
 
 ### Fixed

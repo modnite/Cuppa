@@ -33,7 +33,7 @@ struct PrinterInfo {
         "text/plain"
     };
     bool colorSupported = false;
-    int32_t resolutionDpi = 203; // Standard for thermal printers like Rollo X1038
+    int32_t resolutionDpi = 0; // 0 = unknown; the attribute code picks 203 for thermal, 300 otherwise
 };
 
 struct PrintJob {

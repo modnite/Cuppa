@@ -7,6 +7,16 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: The Brother said document-format-error
+
+Version 0.6.2 still printed nothing. This time Cuppa sent the job with the right label and the
+Brother said OK. I asked the Brother for its own job history straight from the phone. It listed
+my job with the reason `document-format-error`. So it took the file and could not read it.
+
+The cause was one number. Cuppa's default resolution was 203 dpi, picked for the Rollo, and it
+was told to every client for every printer. The Mac dutifully rendered at 203 dpi. The Brother
+supports 300 and 600. Fixed by defaulting raster printers to 300.
+
 ## 2026-09-18: Mac jobs marked done that never printed
 
 I sent 3 copies from the Mac to the Brother. Cuppa said completed. Nothing came out.

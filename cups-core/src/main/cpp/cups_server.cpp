@@ -572,6 +572,13 @@ void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &
     resp.addAttribute(grp, IppTag::KEYWORD, "compression-supported", "none");
 
     // Formats supported
+    // A printer that takes PWG-Raster is a page printer, whatever its name looks like, and clients
+    // render the raster at whatever resolution is advertised here. Advertising 203 dpi for a
+    // laser printer made the Mac send 203 dpi raster that the Brother refused (document-format-error).
+    if (hasPwg && printer.resolutionDpi <= 0) {
+        resDpi = 300;
+        isThermal = false;
+    }
     for (const auto &fmt : formats) {
         resp.addAttribute(grp, IppTag::MIME_MEDIA_TYPE, "document-format-supported", fmt);
     }
