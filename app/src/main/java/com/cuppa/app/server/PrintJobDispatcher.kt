@@ -260,10 +260,12 @@ class PrintJobDispatcher(
 
         var fileToSend = spoolFile
         var convertedFile: File? = null
+        var copiesInFile = false // the raster already holds every copy, so do not ask the printer for more
         if (isPdf && supportsPwgRaster && !supportsPdf) {
             val rasterFile = File(spoolFile.parentFile, "${spoolFile.nameWithoutExtension}.ras")
-            if (PwgRasterConverter.convertAllPagesToPwgRaster(spoolFile, rasterFile, printer.colorSupported && !monochrome)) {
+            if (PwgRasterConverter.convertAllPagesToPwgRaster(spoolFile, rasterFile, printer.colorSupported && !monochrome, job.copies.coerceAtLeast(1))) {
                 fileToSend = rasterFile
+                copiesInFile = true
                 convertedFile = rasterFile
                 Log.i(TAG, "Converted job #${job.jobId} PDF to PWG-Raster for ${printer.name}")
             } else {
@@ -273,7 +275,8 @@ class PrintJobDispatcher(
 
         // The client's copies count travels with the job; the target printer does the duplication.
         val copies = job.copies.coerceAtLeast(1)
-        val copiesOnly = if (copies > 1) mapOf("copies" to copies.toString()) else emptyMap()
+        val copiesOnly = if (copies > 1 && !copiesInFile) mapOf("copies" to copies.toString()) else emptyMap()
+        Log.i(TAG, "Job #${job.jobId}: copies=$copies (in file: $copiesInFile), options=$jobOptions")
         val title = job.jobName.ifBlank { "Cuppa Network Print" }
         var resultJobId = CupsEngine.printFile(
             uri = printer.uri,

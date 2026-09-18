@@ -7,6 +7,19 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: Old Mac queues and the missing copies
+
+Three Macs and three different results. My coworker's Mac printed but clipped the top of the
+page. My first Mac failed with PostScript again. After I removed and re-added the printer on it
+the print came out clean but only one copy of three.
+
+The first two have the same cause. A Mac remembers what Cuppa told it when the printer was added.
+Queues added before my fixes still carry the old margins and the old format list. Removing and
+re-adding fixes them. Nothing to change in Cuppa for that.
+
+The copies one was the Brother. It answered "ok but I ignored some attributes" and printed
+once. I stopped relying on it. Cuppa already draws the raster so it now draws every copy into it.
+
 ## 2026-09-18: The Mac sent PostScript
 
 After the resolution fix the next Mac job failed on a different error. The log said the file was

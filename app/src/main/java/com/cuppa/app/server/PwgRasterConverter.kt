@@ -27,16 +27,20 @@ object PwgRasterConverter {
     private const val TAG = "PwgRasterConverter"
     private const val DPI = 300
 
-    /** Renders every page of [pdfFile] into one multi-page PWG-Raster document. */
-    suspend fun convertAllPagesToPwgRaster(pdfFile: File, outputFile: File, colorSupported: Boolean): Boolean {
+    /**
+     * Renders every page of [pdfFile] into one multi-page PWG-Raster document. With [copies] above
+     * one the whole document is written that many times in a row (collated), so the copy count
+     * does not depend on the target printer honoring a "copies" attribute.
+     */
+    suspend fun convertAllPagesToPwgRaster(pdfFile: File, outputFile: File, colorSupported: Boolean, copies: Int = 1): Boolean {
         return try {
             ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
                 PdfRenderer(pfd).use { renderer ->
                     val pageCount = renderer.pageCount
                     if (pageCount == 0) return false
                     CupsEngine.encodePwgRasterDocument(outputFile.absolutePath, colorSupported) { addPage ->
-                        for (i in 0 until pageCount) {
-                            val page = renderer.openPage(i)
+                        for (i in 0 until pageCount * copies.coerceAtLeast(1)) {
+                            val page = renderer.openPage(i % pageCount)
                             val widthPx = (page.width / 72.0 * DPI).toInt().coerceAtLeast(1)
                             val heightPx = (page.height / 72.0 * DPI).toInt().coerceAtLeast(1)
                             val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)

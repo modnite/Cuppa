@@ -3,6 +3,17 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.5] - 2026-09-18
+
+### Fixed
+- Three copies from a Mac printed one. When Cuppa converts a PDF to raster for a printer it now
+  writes every copy into the raster itself instead of asking the printer for copies. The Brother
+  answered "ignored some attributes" and printed once.
+
+### Note
+- A Mac queue added before 0.6.3 keeps the old paper margins and the old format list. It clips
+  the top of the page and can send PostScript. Remove the printer and add it again.
+
 ## [0.6.4] - 2026-09-18
 
 ### Fixed
