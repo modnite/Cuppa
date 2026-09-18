@@ -7,6 +7,14 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: The Mac sent PostScript
+
+After the resolution fix the next Mac job failed on a different error. The log said the file was
+PostScript. The Brother lists raster and generic binary data as its formats and no PDF. So the
+Mac guessed it was a PostScript printer and sent PostScript. Cuppa already converts PDF to raster
+for the Brother when the request comes from Android. It just never told the Mac it could take
+PDF. It does now.
+
 ## 2026-09-18: The Brother said document-format-error
 
 Version 0.6.2 still printed nothing. This time Cuppa sent the job with the right label and the

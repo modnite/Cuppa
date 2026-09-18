@@ -494,6 +494,13 @@ void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &
     if (formats.empty()) {
         formats = {"application/pdf", "application/octet-stream"};
     }
+    // Cuppa converts PDF to PWG-Raster itself for printers that only take raster (see
+    // PrintJobDispatcher), so it can always accept PDF. Without this a Mac sees a printer that
+    // takes "octet-stream" only and sends PostScript, which the real printer then rejects.
+    if (std::find(formats.begin(), formats.end(), "image/pwg-raster") != formats.end() &&
+        std::find(formats.begin(), formats.end(), "application/pdf") == formats.end()) {
+        formats.insert(formats.begin(), "application/pdf");
+    }
     bool hasPdf = std::find(formats.begin(), formats.end(), "application/pdf") != formats.end();
     bool hasPwg = std::find(formats.begin(), formats.end(), "image/pwg-raster") != formats.end();
     bool hasOctet = std::find(formats.begin(), formats.end(), "application/octet-stream") != formats.end();

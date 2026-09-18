@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.4] - 2026-09-18
+
+### Fixed
+- A Mac sent PostScript to the Brother and the Brother refused it. Cuppa advertised only what
+  the Brother takes natively. Printers that only accept raster now also advertise PDF. Cuppa
+  converts the PDF to raster itself before forwarding.
+
 ## [0.6.3] - 2026-09-18
 
 ### Fixed

@@ -180,6 +180,8 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         // image/urf without them give up on driverless setup and ask the user to pick a driver.
         val pdl = supportedFormats.filter { it != "image/urf" }
             .ifEmpty { listOf("application/pdf", "application/octet-stream") }
+            // Same rule as the native server: Cuppa turns PDF into raster for raster-only printers.
+            .let { if ("image/pwg-raster" in it && "application/pdf" !in it) listOf("application/pdf") + it else it }
             .joinToString(",")
 
         val serviceInfo = NsdServiceInfo().apply {
