@@ -22,7 +22,10 @@ worked. I replaced the wrapper. The server looks at the first byte without consu
 connection goes to Android's normal TLS layer and a plain one carries on as before. Cuppa accepts
 both now. The setting only decides whether plain connections are turned away.
 
-Whether Windows accepts a self-signed certificate is still open.
+Windows then listed all the printers. Adding one said "That didn't work". The phone log had the
+answer. Windows asked for `/printers/deskjet_2700_series` in lowercase. Cuppa's queue is named
+`DeskJet_2700_series` and the lookup compared case exactly. Made it case-insensitive. The
+certificate turned out not to matter for discovery, so that question can wait.
 
 ## 2026-09-19: One paper jam and then nothing worked
 

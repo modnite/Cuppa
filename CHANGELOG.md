@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.13] - 2026-09-19
+
+### Fixed
+- Adding a Cuppa printer in Windows failed with "That didn't work". Windows asks for the queue
+  path in lowercase and Cuppa only matched the exact case, so it answered "printer not found".
+  Queue paths match without regard to case now.
+
 ## [0.6.12] - 2026-09-19
 
 ### Fixed

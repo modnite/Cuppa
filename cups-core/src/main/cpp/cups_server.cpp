@@ -288,7 +288,8 @@ std::string CupsServer::resolvePrinterNameLocked(const std::string &uriSegment) 
     if (mPrinters.find(decoded) != mPrinters.end()) return decoded;
     std::string want = sanitizeResourceName(decoded);
     for (const auto &p : mPrinters) {
-        if (sanitizeResourceName(p.first) == want || strcasecmp(p.first.c_str(), decoded.c_str()) == 0) {
+        // Case-insensitive: Windows lowercases the queue path before it asks for it.
+        if (strcasecmp(sanitizeResourceName(p.first).c_str(), want.c_str()) == 0 || strcasecmp(p.first.c_str(), decoded.c_str()) == 0) {
             return p.first;
         }
     }
