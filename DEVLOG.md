@@ -7,6 +7,14 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: The job that never showed up
+
+Three copies printed and the Jobs tab had nothing for it. The job list on the server lives in
+memory and starts numbering at 1 every time the app starts. The history I save to disk is keyed
+by that number too. On startup I loaded the old history and marked all those numbers as already
+seen. So the first new job after a restart was job 1 again and Cuppa thought it had recorded it
+already. I stopped seeding the seen list from disk.
+
 ## 2026-09-18: Old Mac queues and the missing copies
 
 Three Macs and three different results. My coworker's Mac printed but clipped the top of the

@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.6] - 2026-09-18
+
+### Fixed
+- Jobs sent to Cuppa from another device did not appear in the Jobs tab after the app had been
+  restarted. Job numbers start again at 1 on every start and Cuppa treated a new job 1 as one it
+  had already saved.
+
 ## [0.6.5] - 2026-09-18
 
 ### Fixed

@@ -264,7 +264,9 @@ class CupsRepository(
                 )
             }
             _jobHistory.value = loaded
-            recordedJobIds.addAll(loaded.map { it.jobId })
+            // recordedJobIds is deliberately not seeded from history. The native server numbers
+            // jobs from 1 again every time the process starts, so a saved "#1" from yesterday
+            // would make today's job #1 look already recorded and it would never show up.
             Log.i(TAG, "Loaded ${loaded.size} job history entr${if (loaded.size == 1) "y" else "ies"} from storage")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load job history: ${e.message}")
