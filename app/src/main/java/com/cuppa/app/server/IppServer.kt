@@ -63,13 +63,21 @@ class IppServer(
     fun start() {
         if (serverSocket != null) return
 
-        if (tlsEnabled) {
-            sslContext = context?.let { com.cuppa.app.server.TlsCertificateManager.getSslContext(it) }
-            if (sslContext == null) {
-                CuppaLog.e(TAG, "TLS was requested but SSLContext could not be built — falling back to plaintext-only")
-            } else {
-                CuppaLog.i(TAG, "IPPS (TLS) enabled — plaintext requests will receive 426 Upgrade Required")
-            }
+        // TLS is always available on this port. Windows opens a secure connection first, and a
+        // listener that only speaks plain HTTP just drops it, so the printer never shows up there.
+        // [tlsEnabled] decides whether plain HTTP is still allowed, not whether TLS is offered.
+        sslContext = try {
+            context?.let { com.cuppa.app.server.TlsCertificateManager.getSslContext(it) }
+        } catch (e: Exception) {
+            CuppaLog.e(TAG, "Could not build the TLS context", e)
+            null
+        }
+        if (sslContext == null) {
+            CuppaLog.e(TAG, if (tlsEnabled) "TLS was requested but SSLContext could not be built — falling back to plaintext-only" else "TLS unavailable, plaintext only")
+        } else if (tlsEnabled) {
+            CuppaLog.i(TAG, "IPPS (TLS) required — plaintext requests will receive 426 Upgrade Required")
+        } else {
+            CuppaLog.i(TAG, "IPPS (TLS) available alongside plaintext IPP")
         }
 
         var bound = false
@@ -203,6 +211,32 @@ class IppServer(
     }
 
     /**
+     * Looks at the first byte a client sent without consuming it (recv with MSG_PEEK), so a TLS
+     * ClientHello (0x16) can be told apart from plain HTTP and the whole connection can then be
+     * handed to the TLS layer untouched. Returns -1 if the client closed without sending anything.
+     */
+    private fun peekFirstByte(socket: Socket): Int {
+        val pfd = android.os.ParcelFileDescriptor.fromSocket(socket)
+        try {
+            val fd = pfd.fileDescriptor
+            android.system.Os.setsockoptTimeval(fd, android.system.OsConstants.SOL_SOCKET, android.system.OsConstants.SO_RCVTIMEO,
+                android.system.StructTimeval.fromMillis(10_000))
+            val buf = ByteArray(1)
+            val n = try {
+                android.system.Os.recvfrom(fd, buf, 0, 1, android.system.OsConstants.MSG_PEEK, null)
+            } finally {
+                android.system.Os.setsockoptTimeval(fd, android.system.OsConstants.SOL_SOCKET, android.system.OsConstants.SO_RCVTIMEO,
+                    android.system.StructTimeval.fromMillis(0))
+            }
+            return if (n <= 0) -1 else buf[0].toInt() and 0xFF
+        } catch (e: Exception) {
+            return -1
+        } finally {
+            pfd.close()
+        }
+    }
+
+    /**
      * javax.net.ssl.SSLSocketFactory#createSocket(Socket, InputStream, boolean) exists on every
      * Android version (it's part of the standard JDK javax.net.ssl API, added upstream well
      * before API 26) but is excluded from Android's compile-time SDK stub jar, so calling it
@@ -237,14 +271,13 @@ class IppServer(
                 return@withContext
             }
 
+            var plainInput: InputStream? = null
             val effectiveSocket: Socket = if (sslContext != null) {
-                val peek = PushbackInputStream(rawSocket.getInputStream(), 1)
-                val firstByte = peek.read()
+                val firstByte = peekFirstByte(rawSocket)
                 if (firstByte == -1) {
                     rawSocket.close()
                     return@withContext
                 }
-                peek.unread(firstByte)
 
                 if (firstByte == 0x16) {
                     // TLS record header (ContentType.handshake) — this connection is a fresh
@@ -253,12 +286,17 @@ class IppServer(
                     // the one byte we already peeked via the consumed-InputStream overload — it's
                     // present at runtime on every Android version since API 26 but excluded from
                     // the compile-time SDK stub, so it's invoked via reflection here.
-                    val sslSocket = createTlsSocketPreservingPeekedByte(rawSocket, peek)
+                    val sslSocket = sslContext!!.socketFactory.createSocket(
+                        rawSocket, rawSocket.inetAddress?.hostAddress ?: "localhost", rawSocket.port, true
+                    ) as SSLSocket
                     sslSocket.useClientMode = false
                     sslSocket.soTimeout = 10000
                     sslSocket.startHandshake()
                     CuppaLog.d(TAG, "TLS handshake completed with ${rawSocket.remoteSocketAddress}")
                     sslSocket
+                } else if (!tlsEnabled) {
+                    // Plain HTTP and TLS is not required: serve it. The peek did not consume anything.
+                    rawSocket
                 } else {
                     // Plaintext request while TLS is required: tell the client to reconnect
                     // over TLS, the same signal our own client-side code already reacts to.
@@ -274,7 +312,7 @@ class IppServer(
             }
 
             effectiveSocket.use { s ->
-                val input = s.getInputStream()
+                val input = plainInput ?: s.getInputStream()
                 val output = s.getOutputStream()
 
                 // 1. Read HTTP request line and headers

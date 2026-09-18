@@ -3,6 +3,17 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.12] - 2026-09-19
+
+### Fixed
+- Secure connections (IPPS) never worked. The server tried to wrap a connection in TLS with a
+  call this version of Android does not support, so every secure attempt failed. That also made
+  "Require IPPS" useless. Cuppa now checks the first byte a client sends without consuming it and
+  hands secure connections to Android's normal TLS layer.
+- Windows found Cuppa's printers and then dropped them. Windows opens a secure connection first
+  and Cuppa refused it unless "Require IPPS" was on. Cuppa now always accepts both. The setting
+  only decides whether plain connections are turned away.
+
 ## [0.6.11] - 2026-09-19
 
 ### Fixed

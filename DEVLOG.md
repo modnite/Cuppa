@@ -7,6 +7,23 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-19: Windows and the secure connection
+
+Windows saw Cuppa's printers once and then not again. I am on a Windows PC so I asked Windows
+directly. Its own discovery service listed all four Cuppa printers every time. Discovery was
+fine. Then I watched the phone log while Windows searched. One connection came in from this PC
+and the server said it could not read the request. A secure connection from this PC gave the same
+line. Windows opens a TLS connection first. Cuppa only spoke plain HTTP unless "Require IPPS"
+was on.
+
+Turning that on was no help. The server wrapped connections in TLS with a call that this version
+of Android does not implement, so it crashed on every secure attempt. That setting had never
+worked. I replaced the wrapper. The server looks at the first byte without consuming it. A secure
+connection goes to Android's normal TLS layer and a plain one carries on as before. Cuppa accepts
+both now. The setting only decides whether plain connections are turned away.
+
+Whether Windows accepts a self-signed certificate is still open.
+
 ## 2026-09-19: One paper jam and then nothing worked
 
 A sheet did not feed properly and one job died halfway through its upload. Every job after it
