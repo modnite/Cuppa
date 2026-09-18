@@ -3,6 +3,16 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.9] - 2026-09-19
+
+### Fixed
+- Pages sent to a driverless USB printer lost their bottom edge. Cuppa asks the printer for its
+  unprintable border now and shrinks the page to fit inside it. The DeskJet reports about 3 mm on
+  three sides and 12.7 mm at the bottom.
+
+### Changed
+- The log records the printer's ink levels and warnings when a USB job starts.
+
 ## [0.6.8] - 2026-09-19
 
 ### Added

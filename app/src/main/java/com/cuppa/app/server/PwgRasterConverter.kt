@@ -32,7 +32,7 @@ object PwgRasterConverter {
      * one the whole document is written that many times in a row (collated), so the copy count
      * does not depend on the target printer honoring a "copies" attribute.
      */
-    suspend fun convertAllPagesToPwgRaster(pdfFile: File, outputFile: File, colorSupported: Boolean, copies: Int = 1): Boolean {
+    suspend fun convertAllPagesToPwgRaster(pdfFile: File, outputFile: File, colorSupported: Boolean, copies: Int = 1, marginsMm100: IntArray? = null): Boolean {
         return try {
             ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
                 PdfRenderer(pfd).use { renderer ->
@@ -45,7 +45,28 @@ object PwgRasterConverter {
                             val heightPx = (page.height / 72.0 * DPI).toInt().coerceAtLeast(1)
                             val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
                             Canvas(bitmap).drawColor(Color.WHITE)
-                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                            if (marginsMm100 != null) {
+                                // Shrink the page into the printer's printable area (left, top, right,
+                                // bottom in hundredths of a mm). Otherwise the printer clips whatever
+                                // sits inside its unprintable border, which is most of an inch at the
+                                // bottom of an inkjet page.
+                                val l = (marginsMm100[0] / 2540.0 * DPI).toInt()
+                                val t = (marginsMm100[1] / 2540.0 * DPI).toInt()
+                                val r = (marginsMm100[2] / 2540.0 * DPI).toInt()
+                                val b = (marginsMm100[3] / 2540.0 * DPI).toInt()
+                                val availW = (widthPx - l - r).coerceAtLeast(1)
+                                val availH = (heightPx - t - b).coerceAtLeast(1)
+                                val s = minOf(availW.toDouble() / widthPx, availH.toDouble() / heightPx)
+                                val tw = (widthPx * s).toInt().coerceAtLeast(1)
+                                val th = (heightPx * s).toInt().coerceAtLeast(1)
+                                val small = Bitmap.createBitmap(tw, th, Bitmap.Config.ARGB_8888)
+                                Canvas(small).drawColor(Color.WHITE)
+                                page.render(small, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                                Canvas(bitmap).drawBitmap(small, (l + (availW - tw) / 2).toFloat(), (t + (availH - th) / 2).toFloat(), null)
+                                small.recycle()
+                            } else {
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                            }
                             page.close()
 
                             val bpp = if (colorSupported) 3 else 1

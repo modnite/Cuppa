@@ -242,11 +242,28 @@ class UsbPrinterBackend(private val context: Context) {
                 .more(0x44, "pwg-raster-document-type-supported")
                 .more(0x44, "pwg-raster-document-resolution-supported")
                 .more(0x44, "print-color-mode-supported")
+                .more(0x44, "media-left-margin-supported")
+                .more(0x44, "media-top-margin-supported")
+                .more(0x44, "media-right-margin-supported")
+                .more(0x44, "media-bottom-margin-supported")
+                .more(0x44, "marker-names")
+                .more(0x44, "marker-levels")
+                .more(0x44, "marker-colors")
+                .more(0x44, "printer-state-reasons")
                 .build()
         ).getOrElse { return@withContext Result.failure(it) }
         val formats = caps.attrs["document-format-supported"].orEmpty()
         val rasterTypes = caps.attrs["pwg-raster-document-type-supported"].orEmpty()
         CuppaLog.i(TAG, "IPP-over-USB printer formats=$formats rasterTypes=$rasterTypes")
+        CuppaLog.i(TAG, "Ink: names=${caps.attrs["marker-names"]} levels=${caps.attrs["marker-levels"]} " +
+            "colors=${caps.attrs["marker-colors"]} state=${caps.attrs["printer-state-reasons"]}")
+        // Unprintable border in hundredths of a mm, largest value the printer lists for each side.
+        fun margin(key: String) = caps.attrs[key].orEmpty().mapNotNull { it.toIntOrNull() }.maxOrNull() ?: 0
+        val margins = intArrayOf(
+            margin("media-left-margin-supported"), margin("media-top-margin-supported"),
+            margin("media-right-margin-supported"), margin("media-bottom-margin-supported")
+        )
+        CuppaLog.i(TAG, "Margins (l,t,r,b) = ${margins.toList()} hundredths of mm")
 
         var payload = document
         var format = "application/pdf"
@@ -259,7 +276,7 @@ class UsbPrinterBackend(private val context: Context) {
                 temp = java.io.File.createTempFile("ippusb", ".pdf", context.cacheDir).also { it.writeBytes(document) }
                 raster = java.io.File.createTempFile("ippusb", ".ras", context.cacheDir)
                 val useColor = color && "srgb_8" in rasterTypes
-                val ok = com.cuppa.app.server.PwgRasterConverter.convertAllPagesToPwgRaster(temp, raster, useColor, copies)
+                val ok = com.cuppa.app.server.PwgRasterConverter.convertAllPagesToPwgRaster(temp, raster, useColor, copies, margins)
                 if (!ok) return@withContext Result.failure(IOException("Could not convert the document to raster"))
                 payload = raster.readBytes()
                 format = "image/pwg-raster"

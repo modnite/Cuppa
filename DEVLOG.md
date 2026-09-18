@@ -26,6 +26,12 @@ not sure yet.
 
 Cuppa also asks the printer how a job ended now. Raw USB writes can only say the bytes left.
 
+Follow up the same evening. The bottom of every page was clipped. Inkjets cannot print in the last
+half inch. The DeskJet says so over IPP, 12.7 mm at the bottom. Cuppa now shrinks the page to fit.
+For the colors I had Cuppa read the ink levels. Both cartridges are at 20 percent with a low
+warning. Cuppa sent a proper color job and the printer accepted it. I cannot prove it is the ink
+but nothing on the Cuppa side looks wrong.
+
 ## 2026-09-18: Home and the Epson
 
 Got home and tried the Epson through Cuppa from my phone. It failed. The log took one look. The
