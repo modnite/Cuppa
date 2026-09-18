@@ -141,9 +141,22 @@ object IppOverUsb {
         } catch (e: Exception) {
             return Result.failure(e)
         } finally {
+            // IPP-over-USB closes a connection by selecting alternate setting 0 again. Skipping
+            // this after a failed request (a paper jam mid-upload, for one) leaves the printer
+            // waiting for the rest of a request that never comes, and every later request then gets
+            // no reply until the cable is replugged.
+            try { device.findAltZero(ch.iface)?.let { conn.setInterface(it) } } catch (_: Exception) {}
             try { conn.releaseInterface(ch.iface) } catch (_: Exception) {}
             conn.close()
         }
+    }
+
+    private fun UsbDevice.findAltZero(active: UsbInterface): UsbInterface? {
+        for (i in 0 until interfaceCount) {
+            val candidate = getInterface(i)
+            if (candidate.id == active.id && candidate.alternateSetting == 0) return candidate
+        }
+        return null
     }
 
     private fun write(conn: android.hardware.usb.UsbDeviceConnection, ep: UsbEndpoint, data: ByteArray) {

@@ -7,6 +7,14 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-19: One paper jam and then nothing worked
+
+A sheet did not feed properly and one job died halfway through its upload. Every job after it
+failed with no reply until I replugged the printer. The printer was still waiting for the rest of
+the first request. The USB spec has a way to end a connection cleanly and I was not doing it.
+Cuppa does now. I have not been able to test the recovery. I would need to jam the printer on
+purpose.
+
 ## 2026-09-18: The DeskJet and IPP over USB
 
 Tried my dad's HP DeskJet over USB. Every job went through with no error and nothing printed.

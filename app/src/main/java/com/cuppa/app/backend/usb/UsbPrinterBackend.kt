@@ -218,6 +218,28 @@ class UsbPrinterBackend(private val context: Context) {
      *
      * @param color false renders and requests black and white.
      */
+    /**
+     * One IPP request over USB. If it fails in a way that means the printer never saw or acted on
+     * it, wait for the device to come back from its reset and try once more. [idempotent] requests
+     * (queries) also retry when the printer gave no reply. A Print-Job that got no reply is never
+     * retried, because the printer may be printing it and a retry would print it twice.
+     */
+    private suspend fun ippExchange(manager: UsbManager, device: UsbDevice, request: ByteArray, idempotent: Boolean): Result<IppOverUsb.Response> {
+        val ch = IppOverUsb.findChannel(device) ?: return Result.failure(IOException("No IPP-over-USB interface"))
+        val first = IppOverUsb.exchange(manager, device, ch, request)
+        if (first.isSuccess) return first
+        val msg = first.exceptionOrNull()?.message.orEmpty()
+        val neverReached = msg.startsWith("USB write failed") || msg.startsWith("Could not")
+        if (!neverReached && !(idempotent && (msg.startsWith("No reply") || msg.startsWith("Timed out")))) return first
+        CuppaLog.w(TAG, "IPP-over-USB request failed ($msg), closing the connection and retrying once")
+        delay(4000)
+        val again = manager.deviceList.values.firstOrNull { it.vendorId == device.vendorId && it.productId == device.productId }
+            ?: return first
+        if (!manager.hasPermission(again)) return first
+        val ch2 = IppOverUsb.findChannel(again) ?: return first
+        return IppOverUsb.exchange(manager, again, ch2, request)
+    }
+
     suspend fun printViaIppUsb(
         device: UsbDevice,
         document: ByteArray,
@@ -234,8 +256,8 @@ class UsbPrinterBackend(private val context: Context) {
             return@withContext Result.failure(SecurityException("USB permission is not granted for ${device.safeDescription()}"))
         }
 
-        val caps = IppOverUsb.exchange(
-            manager, device, ch,
+        val caps = ippExchange(
+            manager, device,
             IppOverUsb.Request(0x000B)
                 .string(0x42, "requesting-user-name", "cuppa")
                 .string(0x44, "requested-attributes", "document-format-supported")
@@ -250,7 +272,8 @@ class UsbPrinterBackend(private val context: Context) {
                 .more(0x44, "marker-levels")
                 .more(0x44, "marker-colors")
                 .more(0x44, "printer-state-reasons")
-                .build()
+                .build(),
+            idempotent = true
         ).getOrElse { return@withContext Result.failure(it) }
         val formats = caps.attrs["document-format-supported"].orEmpty()
         val rasterTypes = caps.attrs["pwg-raster-document-type-supported"].orEmpty()
@@ -292,7 +315,7 @@ class UsbPrinterBackend(private val context: Context) {
             req.string(0x44, "print-color-mode", if (color) "color" else "monochrome")
 
             CuppaLog.i(TAG, "IPP-over-USB Print-Job: ${payload.size} bytes as $format, copies=$copies, color=$color")
-            val resp = IppOverUsb.exchange(manager, device, ch, req.build(payload)).getOrElse { return@withContext Result.failure(it) }
+            val resp = ippExchange(manager, device, req.build(payload), idempotent = false).getOrElse { return@withContext Result.failure(it) }
             if (resp.status >= 0x0100) {
                 // Some printers reject an attribute they do not know. Send once more without ours.
                 CuppaLog.w(TAG, "Printer answered 0x${Integer.toHexString(resp.status)}, retrying without job options")

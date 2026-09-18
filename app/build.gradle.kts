@@ -32,8 +32,8 @@ android {
         applicationId = "com.cuppa.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = releaseVersionCode ?: 610
-        versionName = releaseVersionName ?: "0.6.10"
+        versionCode = releaseVersionCode ?: 611
+        versionName = releaseVersionName ?: "0.6.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

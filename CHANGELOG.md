@@ -3,6 +3,14 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.11] - 2026-09-19
+
+### Fixed
+- After one failed USB job (a paper feed problem in my case) every later job to that printer
+  failed too until the cable was replugged. Cuppa now closes the IPP-over-USB connection the way
+  the spec says after every request. A request that never reached the printer is retried once.
+  A print job that reached the printer is never retried, so nothing prints twice.
+
 ## [0.6.10] - 2026-09-19
 
 ### Changed
