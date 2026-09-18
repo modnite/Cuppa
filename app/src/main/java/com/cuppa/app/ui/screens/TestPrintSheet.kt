@@ -147,8 +147,10 @@ fun TestPrintSheet(
                     Pair(TestPrintFormat.ESC_POS, StandardTestPageGenerator.PaperSize.RECEIPT_80MM)
                 "epl" in lower || "eltron" in lower ->
                     Pair(TestPrintFormat.EPL2, StandardTestPageGenerator.PaperSize.LABEL_4X6)
+                // Anything not recognized as a label or receipt printer is far more likely a page
+                // printer (an inkjet or laser), and a PDF on Letter is what those take.
                 else ->
-                    Pair(TestPrintFormat.TSPL, StandardTestPageGenerator.PaperSize.LABEL_4X6)
+                    Pair(TestPrintFormat.PDF, StandardTestPageGenerator.PaperSize.LETTER)
             }
         }
     }
@@ -159,7 +161,7 @@ fun TestPrintSheet(
     // capability — useful for verifying grayscale rendering fidelity, or testing a color
     // printer's black-only behavior specifically. Only affects the PWG-Raster network path;
     // thermal/USB formats (ESC/POS, ZPL, TSPL, EPL) are inherently monochrome already.
-    var colorMode by remember(printer) { mutableStateOf(printer.colorSupported) }
+    var colorMode by remember(printer) { mutableStateOf(printer.colorSupported || initialFormat == TestPrintFormat.PDF) }
 
     var isPrinting by remember { mutableStateOf(false) }
     var printSuccessMessage by remember { mutableStateOf<String?>(null) }

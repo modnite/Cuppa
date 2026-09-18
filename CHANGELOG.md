@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.10] - 2026-09-19
+
+### Changed
+- Test Print on a USB printer Cuppa does not recognize as a label or receipt printer starts on
+  Vector PDF, Letter and Color. It used to start on a 4 x 6 label format, which a DeskJet or
+  any other page printer cannot use.
+
 ## [0.6.9] - 2026-09-19
 
 ### Fixed
