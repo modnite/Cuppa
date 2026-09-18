@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.cuppa.app.backend.usb.UsbPrinterBackend
 import com.cuppa.app.data.CupsRepository
 import com.cuppa.app.data.thermal.ThermalPreferences
+import com.cuppa.app.ui.util.horizontalScrollWithWheel
 import com.cuppa.app.util.CuppaLog
 import com.cuppa.app.util.NetworkUtils
 import com.cuppa.cups.PrinterInfo
@@ -83,6 +84,21 @@ fun TestPrintSheet(
 
     val permEvent by com.cuppa.app.util.UsbPermissionHelper.permissionEvent.collectAsState()
     val isUsb = printer.uri.startsWith("usb", ignoreCase = true)
+
+    // A network printer whose host is this device's own IP is one of Cuppa's own USB printers,
+    // re-advertised over mDNS so other devices on the network can print to it. We know exactly
+    // what's on the other end in that case (our own USB backend), so it should get the same
+    // format treatment as adding it directly over USB would. A genuine external network printer
+    // (a real Brother/Epson/etc.) doesn't get this since we can't assume it understands a
+    // thermal/label command language just because it happens to share a keyword with one.
+    val isSelfHostedUsb = remember(printer.uri) {
+        if (isUsb) {
+            false
+        } else {
+            val host = Regex("^[a-zA-Z]+://\\[?([^\\]/:?]+)\\]?").find(printer.uri)?.groupValues?.getOrNull(1)
+            host != null && host == NetworkUtils.getLocalIpAddress()
+        }
+    }
     val usbDevice = remember(printer.uri, permEvent) {
         if (isUsb) usbBackend.findDeviceByUri(printer.uri) else null
     }
@@ -112,16 +128,18 @@ fun TestPrintSheet(
     val networkSafeFormats = remember { setOf(TestPrintFormat.PDF, TestPrintFormat.POSTSCRIPT) }
 
     // Auto-detect best initial format and media size. Thermal/label heuristics only make sense
-    // when Cuppa is directly driving the physical device over USB — for a network target we
-    // don't actually know its real capabilities, so default to the one format nearly every
-    // IPP/AirPrint printer accepts regardless of what it advertises.
-    val (initialFormat, initialSize) = remember(printer, isUsb) {
-        if (!isUsb) {
+    // when we know the physical device's real language — either Cuppa is driving it directly
+    // over USB, or it's one of Cuppa's own USB printers re-advertised over the network
+    // (isSelfHostedUsb). For a genuine external network target we don't actually know its real
+    // capabilities, so default to the one format nearly every IPP/AirPrint printer accepts
+    // regardless of what it advertises.
+    val (initialFormat, initialSize) = remember(printer, isUsb, isSelfHostedUsb) {
+        if (!isUsb && !isSelfHostedUsb) {
             Pair(TestPrintFormat.PDF, StandardTestPageGenerator.PaperSize.LETTER)
         } else {
             val lower = "${printer.name} ${printer.makeAndModel} ${printer.uri}".lowercase()
             when {
-                "rollo" in lower || "x1038" in lower || "tspl" in lower || "xpp" in lower ->
+                "rollo" in lower || "x1038" in lower || "tspl" in lower || "xpp" in lower || "0x09c5" in lower ->
                     Pair(TestPrintFormat.TSPL, StandardTestPageGenerator.PaperSize.LABEL_4X6)
                 "zebra" in lower || "zpl" in lower ->
                     Pair(TestPrintFormat.ZPL, StandardTestPageGenerator.PaperSize.LABEL_4X6)
@@ -168,13 +186,20 @@ fun TestPrintSheet(
                     }
 
                     CuppaLog.i("TestPrintSheet", "Generating USB test print in format ${selectedFormat.name} for ${printer.name}")
+                    usbBackend.queryHardwareStatus(dev).let { r ->
+                        CuppaLog.i("TestPrintSheet", "Pre-print printer status: ${r.getOrNull() ?: r.exceptionOrNull()?.message}")
+                    }
 
                     // Generate bytes for USB
                     val bytesToSend: ByteArray = when (selectedFormat) {
-                        TestPrintFormat.TSPL -> TsplDriver.generateTestLabel(
+                        TestPrintFormat.TSPL -> buildTsplRasterTestLabel(
+                            context = context,
                             printerName = printer.name,
                             cupsVersion = "CUPS v2.2.9",
-                            transport = transportStr
+                            transport = transportStr,
+                            serverUri = shareUri,
+                            paperSize = selectedSize,
+                            thermal = thermalPrefs.settings.value
                         )
                         TestPrintFormat.ZPL -> ZplDriver.generateTestLabel(
                             printerName = printer.name,
@@ -223,7 +248,7 @@ fun TestPrintSheet(
                                     printer.uri.contains("1038", ignoreCase = true)
 
                             if (isRollo) {
-                                val bmp = renderFirstPageToBitmap(context, pdfBytes, widthPx = 812)
+                                val bmp = TsplDriver.centerOnPrintHead(renderFirstPageToBitmap(context, pdfBytes, widthPx = 812))
                                 val tp = thermalPrefs.settings.value
                                 TsplDriver.fromBitmap(
                                     bmp,
@@ -273,10 +298,14 @@ fun TestPrintSheet(
                             printerName = printer.name,
                             transport = transportStr
                         )
-                        TestPrintFormat.TSPL -> TsplDriver.generateTestLabel(
+                        TestPrintFormat.TSPL -> buildTsplRasterTestLabel(
+                            context = context,
                             printerName = printer.name,
                             cupsVersion = activeCupsVersion,
-                            transport = transportStr
+                            transport = transportStr,
+                            serverUri = shareUri,
+                            paperSize = selectedSize,
+                            thermal = thermalPrefs.settings.value
                         )
                         TestPrintFormat.ZPL -> ZplDriver.generateTestLabel(
                             printerName = printer.name,
@@ -474,7 +503,7 @@ fun TestPrintSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScrollWithWheel(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 StandardTestPageGenerator.PaperSize.entries.forEach { size ->
@@ -498,10 +527,10 @@ fun TestPrintSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScrollWithWheel(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val selectableFormats = if (isUsb) TestPrintFormat.entries else TestPrintFormat.entries.filter { it in networkSafeFormats }
+                val selectableFormats = if (isUsb || isSelfHostedUsb) TestPrintFormat.entries else TestPrintFormat.entries.filter { it in networkSafeFormats }
                 selectableFormats.forEach { fmt ->
                     FilterChip(
                         selected = selectedFormat == fmt,
@@ -666,6 +695,37 @@ fun TestPrintSheet(
  * aspect ratio — shared by every test-print path that needs to rasterize before handing bytes to
  * a printer-language driver (TSPL, PCL, etc).
  */
+/**
+ * Builds the TSPL test label as a rendered BITMAP raster rather than TEXT/BOX/BARCODE/QRCODE
+ * commands. A real Rollo X1038 (IEEE 1284 CMD:XPP,XL) is only proven with BITMAP jobs; the
+ * higher-level drawing commands silently print nothing on it.
+ */
+private fun buildTsplRasterTestLabel(
+    context: android.content.Context,
+    printerName: String,
+    cupsVersion: String,
+    transport: String,
+    serverUri: String,
+    paperSize: StandardTestPageGenerator.PaperSize,
+    thermal: com.cuppa.app.data.thermal.ThermalSettingsState
+): ByteArray {
+    val pdfBytes = StandardTestPageGenerator.generatePdfTestPage(
+        paperSize = paperSize,
+        printerName = printerName,
+        cupsVersion = cupsVersion,
+        transport = transport,
+        serverUri = serverUri
+    )
+    val bmp = TsplDriver.centerOnPrintHead(renderFirstPageToBitmap(context, pdfBytes, widthPx = 812))
+    return TsplDriver.fromBitmap(
+        bmp,
+        density = (thermal.darkness / 2).coerceIn(0, 15),
+        speed = thermal.speedIps,
+        ditherMode = thermal.ditherMode,
+        invertPolarity = true xor thermal.invertPolarity
+    )
+}
+
 private fun renderFirstPageToBitmap(context: android.content.Context, pdfBytes: ByteArray, widthPx: Int): Bitmap {
     val tempPdf = File(context.cacheDir, "temp_render_${System.currentTimeMillis()}.pdf")
     tempPdf.writeBytes(pdfBytes)

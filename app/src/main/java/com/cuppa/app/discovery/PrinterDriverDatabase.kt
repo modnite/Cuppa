@@ -37,6 +37,15 @@ object PrinterDriverDatabase {
      * Checked first (most specific match).
      */
     private val knownByVidPid: List<KnownPrinter> = listOf(
+        // ---- Rollo X1038 as it actually enumerates (IEEE 1284 CMD:XPP,XL, TSPL BITMAP jobs) ----
+        KnownPrinter(
+            vendorId = 0x09C5, productId = 0x0588,
+            name = "Rollo X1038",
+            driver = "TSPL",
+            printerType = PrinterType.THERMAL_GENERIC,
+            defaultLabelSize = "4x6"
+        ),
+
         // ---- Rollo ----
         KnownPrinter(
             vendorId = 0x0483, productId = 0x5720,

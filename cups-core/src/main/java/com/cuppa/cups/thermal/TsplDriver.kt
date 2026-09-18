@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets
  * and Michael R Sweet.
  *
  * Hardware Specifications:
- * - Rollo X1038 4" x 6" Direct Thermal Printer (USB VID 0x20D1 / PID 0x7008 or generic 1284 device)
+ * - Rollo X1038 4" x 6" Direct Thermal Printer (USB VID 0x09C5 / PID 0x0588, IEEE 1284 CMD:XPP,XL)
  * - Resolution: 203 DPI (8 dots per mm)
  * - Standard 4" x 6" label:
  *     - Width: 812 dots (~101.6 mm / 102 mm) -> 102 bytes per raster row
@@ -223,6 +223,7 @@ class TsplDriver(
      */
     fun build(): ByteArray {
         val out = ByteArrayOutputStream()
+        out.write(RESET_PREAMBLE)
         if (binaryStream.size() > 0) {
             out.write(binaryStream.toByteArray())
         }
@@ -244,6 +245,33 @@ class TsplDriver(
         const val ROLLO_WIDTH_MM = 101.6
         const val ROLLO_HEIGHT_MM = 152.4
         const val ROLLO_ROW_BYTES = 102 // 816 dots / 8 = 102 bytes
+
+        // `~@` (reset) followed by CRLF. Confirmed against a real Rollo X1038 (VID 0x09C5 / PID
+        // 0x0588): without this preamble the printer accepts the whole TSPL command stream over
+        // USB bulk OUT with no transfer error, but never actually fires the print head — it's
+        // sitting in a state that only this reset clears. Not documented in the public TSPL2
+        // spec; recovered from an earlier from-scratch reverse-engineering pass against this
+        // exact hardware.
+        private val RESET_PREAMBLE = byteArrayOf(0x7E, 0x40, 0x0D, 0x0A)
+
+        /** The X1038's print head is 832 dots wide, but a 4" label at 203 DPI is only 812. */
+        const val ROLLO_HEAD_DOTS = 832
+
+        /**
+         * Places an already label-width (812 dot) bitmap in the middle of the 832-dot print head.
+         * Rendering a full 832 wide prints ~2.5% oversized and runs off the right edge of the
+         * label (confirmed on real hardware); rendering 812 and sending it as-is leaves the right
+         * edge exactly on the label edge, where any drift clips it. Centering gives both sides
+         * the same small margin.
+         */
+        fun centerOnPrintHead(bitmap: Bitmap): Bitmap {
+            if (bitmap.width >= ROLLO_HEAD_DOTS) return bitmap
+            val out = Bitmap.createBitmap(ROLLO_HEAD_DOTS, bitmap.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(out)
+            canvas.drawColor(Color.WHITE)
+            canvas.drawBitmap(bitmap, ((ROLLO_HEAD_DOTS - bitmap.width) / 2).toFloat(), 0f, null)
+            return out
+        }
 
         /**
          * Convert an Android [Bitmap] into a complete TSPL job matching Nelu LLC / Rollo CUPS driver.
@@ -271,6 +299,7 @@ class TsplDriver(
             )
 
             val out = ByteArrayOutputStream()
+            out.write(RESET_PREAMBLE)
             val header = buildString {
                 append("SIZE $widthMm mm ,$heightMm mm\n")
                 append("REFERENCE 0,0\n")

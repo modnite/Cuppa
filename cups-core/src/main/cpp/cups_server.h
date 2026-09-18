@@ -106,8 +106,16 @@ private:
     std::shared_ptr<IppMessage> handleCancelJob(const IppMessage &req);
     std::shared_ptr<IppMessage> handleCupsGetPrinters(const IppMessage &req);
 
-    void populatePrinterAttributes(IppMessage &resp, const PrinterInfo &printer, const std::string &requestUri = "");
-    void populateJobAttributes(IppMessage &resp, const PrintJob &job) const;
+    void populatePrinterAttributes(IppMessage &resp, const PrinterInfo &printer, const std::string &requestUri = "", int32_t queuedJobs = 0);
+    void populateJobAttributes(IppMessage &resp, const PrintJob &job, const std::string &hostPort = "") const;
+    // Host:port the client used to reach us (from its printer-uri/job-uri), falling back to the
+    // address the server itself was configured with.
+    std::string hostPortForRequest(const IppMessage &req) const;
+    // Maps the last path segment of a printer URI back to a registered printer name. Registered
+    // names contain spaces and punctuation but URIs can't, so both sides are compared in their
+    // sanitized resource form. Assumes the caller holds mMutex. Returns "" if nothing matches.
+    std::string resolvePrinterNameLocked(const std::string &uriSegment) const;
+    int32_t queuedJobCountLocked(const std::string &printerName) const;
     std::string spoolPathForJob(int32_t jobId) const;
 
     mutable std::mutex mMutex;

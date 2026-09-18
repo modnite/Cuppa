@@ -47,7 +47,10 @@ class UsbPermissionReceiver : BroadcastReceiver() {
             UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
                 val desc = device?.safeDescription() ?: "Unknown USB Device"
                 CuppaLog.i(TAG, "USB Device Attached: $desc")
-                if (device != null) {
+                // Only printers deserve a permission prompt. This used to prompt for every attached
+                // device (game controller, audio adapter, Ethernet dongle...), each one a system
+                // dialog the user had to dismiss, on a screen they often aren't looking at.
+                if (device != null && UsbPermissionHelper.isPrinterDevice(device)) {
                     UsbPermissionHelper.requestUsbPermission(context, device)
                 }
             }

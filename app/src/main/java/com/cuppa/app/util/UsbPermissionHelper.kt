@@ -144,57 +144,25 @@ object UsbPermissionHelper {
     }
 
     /**
-     * Determine if a USB device is a printer (class 7, bulk OUT interface, or known thermal printer).
+     * Determine if a USB device is a printer we should ask permission for.
+     *
+     * A device qualifies if it declares the USB Printer class (7) on any interface, or it is a
+     * known thermal/label printer by VID/PID. Deliberately NOT "has a bulk OUT endpoint" or
+     * "device class is per-interface/vendor-specific": those match nearly every USB peripheral
+     * (audio adapters, game controllers, Ethernet dongles, hubs), and each false match costs the
+     * user a system permission dialog.
      */
     fun isPrinterDevice(device: UsbDevice): Boolean {
-        // 1. Check known printer database (by VID/PID or known VIDs)
-        val knownVids = setOf(
-            0x0483, // Rollo / STMicroelectronics
-            0x0fe6, // ICS Advent
-            0x1fc9, // NXP / Thermal
-            0x04b8, // Epson
-            0x04f9, // Brother
-            0x0519, // Star Micronics
-            0x0dd4, // Custom Engineering
-            0x1504, // Nippon
-            0x1a86, // QinHeng (CH340/CH341 USB-to-Serial / Thermal)
-            0x20d1, // Besta
-            0x28e9, // GigaDevice
-            0x6868, // Xprinter
-            0x03f0, // HP
-            0x04a9, // Canon
-            0x043d, // Lexmark
-            0x0922, // Dymo
-            0x0a5f, // Zebra
-            0x1208, // POSIFLEX
-            0x0525, // Netchip
-            0x10c4, // Silicon Labs (CP210x)
-            0x0403  // FTDI
-        )
-        if (knownVids.contains(device.vendorId)) return true
-        if (PrinterDriverDatabase.lookupPrinter(device.vendorId, device.productId) != null) return true
-
-        // 2. Check interface classes (Class 7 = Printer, or any bulk OUT endpoint)
-        try {
-            for (i in 0 until device.interfaceCount) {
-                val iface = device.getInterface(i)
-                if (iface.interfaceClass == UsbConstants.USB_CLASS_PRINTER) return true
-                for (j in 0 until iface.endpointCount) {
-                    val ep = iface.getEndpoint(j)
-                    if (ep.direction == UsbConstants.USB_DIR_OUT && ep.type == UsbConstants.USB_ENDPOINT_XFER_BULK) {
-                        return true
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-
-        // 3. Fallback: if device class is 0 (per-interface), 7 (printer), or 255 (vendor-specific)
-        if (device.deviceClass == UsbConstants.USB_CLASS_PER_INTERFACE ||
-            device.deviceClass == UsbConstants.USB_CLASS_PRINTER ||
-            device.deviceClass == 255) {
+        if (PrinterDriverDatabase.lookupPrinter(device.vendorId, device.productId)?.let {
+                it.printerType != PrinterDriverDatabase.PrinterType.STANDARD
+            } == true) {
             return true
         }
-
-        return false
+        try {
+            for (i in 0 until device.interfaceCount) {
+                if (device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_PRINTER) return true
+            }
+        } catch (_: Exception) {}
+        return device.deviceClass == UsbConstants.USB_CLASS_PRINTER
     }
 }

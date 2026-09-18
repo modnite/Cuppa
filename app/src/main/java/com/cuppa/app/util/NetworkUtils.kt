@@ -61,8 +61,25 @@ object NetworkUtils {
      */
     fun getPrinterIppUri(printerName: String, port: Int): String {
         val ip = getLocalIpAddress() ?: "127.0.0.1"
-        val cleanName = printerName.replace(" ", "_").replace(Regex("[^a-zA-Z0-9_-]"), "")
-        return "ipp://$ip:$port/printers/$cleanName"
+        return "ipp://$ip:$port/printers/${PrinterNaming.resourceName(printerName)}"
+    }
+
+    /**
+     * Every IP address currently assigned to this device (all interfaces, IPv4 and IPv6, without
+     * zone suffixes). Used to recognize mDNS services that are really Cuppa itself.
+     */
+    fun getAllLocalAddresses(): Set<String> {
+        val out = mutableSetOf<String>()
+        try {
+            for (intf in NetworkInterface.getNetworkInterfaces() ?: return out) {
+                for (addr in intf.inetAddresses) {
+                    addr.hostAddress?.substringBefore('%')?.let { out.add(it.lowercase()) }
+                }
+            }
+        } catch (e: Exception) {
+            CuppaLog.w(TAG, "Failed enumerating local addresses", e)
+        }
+        return out
     }
 
     /**

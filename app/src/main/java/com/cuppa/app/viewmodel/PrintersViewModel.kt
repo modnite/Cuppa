@@ -79,22 +79,43 @@ class PrintersViewModel(application: Application) : AndroidViewModel(application
         _operationResult,
         _showAddSheet
     ) { (addedPrinters, usbPrinters, netPrinters), (isNetScanning, isRefreshing, port), isAdding, result, showSheet ->
-        // Filter out printers that are already added
+        // "Available" should only list things that could still be added. Three kinds of
+        // discovered network entries are NOT that, and used to show up as confusing duplicates:
+        //  1. Cuppa itself. Once a printer is added, Cuppa re-advertises it over mDNS as
+        //     "<name> (Cuppa)" so other devices can find it, and Cuppa's own scan sees that too
+        //     (mDNS may append "(2)" on a name conflict). Anything resolving to one of this
+        //     device's own addresses is Cuppa, never a printer to add.
+        //  2. The original network printer behind one already added (recognized by its address
+        //     or mDNS UUID, never by name).
+        //  3. Already-added URIs.
         val addedUris = addedPrinters.map { it.uri }.toSet()
-        val addedNames = addedPrinters.map { it.name }.toSet()
+        val addedHosts = addedPrinters.mapNotNull { added ->
+            if (added.uri.startsWith("ipp", ignoreCase = true) || added.uri.startsWith("http", ignoreCase = true)) {
+                Regex("^[a-zA-Z]+://\\[?([^\\]/:?]+)").find(added.uri)?.groupValues?.getOrNull(1)?.lowercase()
+            } else null
+        }.toSet()
+        val localAddresses = com.cuppa.app.util.NetworkUtils.getAllLocalAddresses()
+
+        fun hostOf(p: DiscoveredPrinter) = p.capabilities["host"]?.substringBefore('%')?.lowercase()
+        fun uuidOf(p: DiscoveredPrinter) = p.capabilities.entries
+            .firstOrNull { it.key.equals("UUID", ignoreCase = true) }?.value?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+
+        // One physical printer can be reachable at several addresses (Wi-Fi and Ethernet) under
+        // several names. The mDNS UUID is what ties those together, and what tells two printers of
+        // the same model apart, so an "already added" printer is recognized by the UUID of any
+        // discovered entry that sits at one of the added printers' addresses. Names are never
+        // compared: two identical-model printers differ only by an " (2)" suffix.
+        val addedUuids = netPrinters.filter { hostOf(it) in addedHosts }.mapNotNull { uuidOf(it) }.toSet()
 
         val filteredUsb = usbPrinters.map { printer ->
             printer.copy(isAlreadyAdded = addedUris.contains(printer.uri))
         }
         val filteredNet = netPrinters.map { printer ->
-            // Once a printer is added, Cuppa re-advertises it on the network as "<name> (Cuppa)"
-            // (see NetworkPrinterAdvertiser) so other devices can discover it — but that means
-            // Cuppa's own network scan finds this self-hosted reflection too, under a URI that
-            // points back at Cuppa itself rather than the original printer, so a plain URI match
-            // against addedUris misses it. Recognize it by name instead.
-            val isSelfReflection = printer.name.endsWith(" (Cuppa)") &&
-                addedNames.contains(printer.name.removeSuffix(" (Cuppa)"))
-            printer.copy(isAlreadyAdded = addedUris.contains(printer.uri) || isSelfReflection)
+            val host = hostOf(printer)
+            val isSelf = host != null && host in localAddresses
+            val sameHost = host != null && host in addedHosts
+            val sameDevice = uuidOf(printer)?.let { it in addedUuids } == true
+            printer.copy(isAlreadyAdded = addedUris.contains(printer.uri) || isSelf || sameHost || sameDevice)
         }
 
         PrintersUiState(
@@ -163,16 +184,31 @@ class PrintersViewModel(application: Application) : AndroidViewModel(application
      * Network attributes are asynchronously enriched in the background.
      * Manual entries are connection-tested first with a strict timeout.
      */
+    /**
+     * Printers are keyed by name everywhere (the repository, the native queue registry, the
+     * share URI), so two different printers can't share one. Two printers of the same model (say,
+     * two Brother MFC-L2717DW in one office) advertise the same name, and adding the second would
+     * silently replace the first. When a different printer already holds the name, tell them
+     * apart by address.
+     */
+    private fun uniquePrinterName(base: String, uri: String): String {
+        val clash = repository.printers.value.any { it.name.equals(base, ignoreCase = true) && it.uri != uri }
+        if (!clash) return base
+        val host = Regex("^[a-zA-Z]+://\\[?([^\\]/:?]+)").find(uri)?.groupValues?.getOrNull(1)
+        return if (host != null) "$base ($host)" else "$base (2)"
+    }
+
     fun addPrinter(printer: DiscoveredPrinter, forceAdd: Boolean = false) {
         viewModelScope.launch {
             _isAdding.value = true
             _operationResult.value = null
 
             try {
+                val printerName = uniquePrinterName(printer.name, printer.uri)
                 when (printer.transport) {
                     PrinterTransport.USB -> {
                         val info = PrinterInfo(
-                            name = printer.name,
+                            name = printerName,
                             uri = printer.uri,
                             makeAndModel = printer.makeAndModel,
                             state = 3, // idle
@@ -200,7 +236,7 @@ class PrintersViewModel(application: Application) : AndroidViewModel(application
                             ?: listOf("application/pdf", "image/pwg-raster", "image/urf")
 
                         val initialInfo = PrinterInfo(
-                            name = printer.name,
+                            name = printerName,
                             uri = printer.uri,
                             makeAndModel = printer.makeAndModel,
                             info = printer.capabilities["note"] ?: printer.capabilities["product"] ?: "",
@@ -219,7 +255,10 @@ class PrintersViewModel(application: Application) : AndroidViewModel(application
                             try {
                                 val result = repository.testPrinterConnection(printer.uri)
                                 result.onSuccess { enriched ->
-                                    repository.addPrinter(enriched)
+                                    // Keep the name and address chosen when the printer was added.
+                                    // The printer reports its own name (identical on two units of the
+                                    // same model), and re-adding under that would overwrite the other.
+                                    repository.addPrinter(enriched.copy(name = initialInfo.name, uri = initialInfo.uri))
                                     repository.savePrinters(getApplication())
                                     Log.i(TAG, "Enriched attributes for: ${enriched.name}")
                                 }
@@ -232,7 +271,7 @@ class PrintersViewModel(application: Application) : AndroidViewModel(application
                     PrinterTransport.MANUAL -> {
                         if (forceAdd) {
                             val info = PrinterInfo(
-                                name = printer.name,
+                                name = printerName,
                                 uri = printer.uri,
                                 makeAndModel = printer.makeAndModel.ifEmpty { "Manual IPP Printer" },
                                 state = 3

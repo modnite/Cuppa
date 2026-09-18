@@ -1,5 +1,6 @@
 #include "cups_ipp.h"
 #include <cstring>
+#include <ctime>
 #include <android/log.h>
 
 #define LOG_TAG "CuppaIPP"
@@ -226,6 +227,53 @@ void IppMessage::addResolutionAttribute(IppTag groupTag, const std::string &name
         units
     };
     targetGroup->attributes.push_back(IppAttribute{IppTag::RESOLUTION, name, std::move(val)});
+}
+
+static IppGroup* findOrAddGroup(std::vector<IppGroup> &groups, IppTag groupTag) {
+    for (auto &g : groups) {
+        if (g.groupTag == groupTag) return &g;
+    }
+    groups.push_back(IppGroup{groupTag, {}});
+    return &groups.back();
+}
+
+void IppMessage::addRangeAttribute(IppTag groupTag, const std::string &name, int32_t lower, int32_t upper) {
+    std::vector<uint8_t> val;
+    for (int32_t v : {lower, upper}) {
+        val.push_back(static_cast<uint8_t>((v >> 24) & 0xFF));
+        val.push_back(static_cast<uint8_t>((v >> 16) & 0xFF));
+        val.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
+        val.push_back(static_cast<uint8_t>(v & 0xFF));
+    }
+    findOrAddGroup(groups, groupTag)->attributes.push_back(IppAttribute{IppTag::RANGE_OF_INTEGER, name, std::move(val)});
+}
+
+void IppMessage::addDateTimeAttribute(IppTag groupTag, const std::string &name, int64_t epochSeconds) {
+    time_t t = static_cast<time_t>(epochSeconds);
+    struct tm tmv;
+    gmtime_r(&t, &tmv);
+    int year = tmv.tm_year + 1900;
+    std::vector<uint8_t> val = {
+        static_cast<uint8_t>((year >> 8) & 0xFF), static_cast<uint8_t>(year & 0xFF),
+        static_cast<uint8_t>(tmv.tm_mon + 1), static_cast<uint8_t>(tmv.tm_mday),
+        static_cast<uint8_t>(tmv.tm_hour), static_cast<uint8_t>(tmv.tm_min),
+        static_cast<uint8_t>(tmv.tm_sec), 0,
+        '+', 0, 0
+    };
+    findOrAddGroup(groups, groupTag)->attributes.push_back(IppAttribute{IppTag::DATE_TIME, name, std::move(val)});
+}
+
+void IppMessage::beginCollection(IppTag groupTag, const std::string &name) {
+    findOrAddGroup(groups, groupTag)->attributes.push_back(IppAttribute{IppTag::BEG_COLLECTION, name, {}});
+}
+
+void IppMessage::endCollection(IppTag groupTag) {
+    findOrAddGroup(groups, groupTag)->attributes.push_back(IppAttribute{IppTag::END_COLLECTION, "", {}});
+}
+
+void IppMessage::addCollectionMemberName(IppTag groupTag, const std::string &member) {
+    findOrAddGroup(groups, groupTag)->attributes.push_back(
+        IppAttribute{IppTag::MEMBER_ATTR_NAME, "", std::vector<uint8_t>(member.begin(), member.end())});
 }
 
 const IppAttribute* IppMessage::findAttribute(const std::string &name) const {

@@ -7,13 +7,21 @@ import android.net.wifi.WifiManager
 import com.cuppa.app.util.CuppaLog as Log
 import com.cuppa.app.data.CupsRepository
 import com.cuppa.cups.PrinterInfo
+import com.cuppa.app.util.PrinterNaming
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -45,6 +53,23 @@ class NetworkPrinterAdvertiser(private val context: Context) {
     private var multicastLock: WifiManager.MulticastLock? = null
 
     private val activeListeners = CopyOnWriteArrayList<NsdManager.RegistrationListener>()
+    // Completed by a listener's own unregistered callback so a re-registration can wait for the old
+    // records to actually be withdrawn. Registering a name before its previous registration is gone
+    // makes NsdManager rename the new one "Name (2)", which is where the "(Cuppa) (2)" duplicates
+    // in other devices' printer lists came from.
+    private val unregisterWaiters = ConcurrentHashMap<NsdManager.RegistrationListener, CompletableDeferred<Unit>>()
+    private var lastSignature: List<AdvertisedPrinter>? = null
+
+    /** The parts of a printer that affect what we advertise; anything else changing is ignored. */
+    private data class AdvertisedPrinter(
+        val name: String,
+        val model: String,
+        val color: Boolean,
+        val formats: List<String>
+    )
+
+    private fun signature(printers: List<PrinterInfo>) =
+        printers.map { AdvertisedPrinter(it.name, it.makeAndModel, it.colorSupported, it.supportedFormats) }
     private val advertiseScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var watchJob: Job? = null
     private var lastPort: Int = 631
@@ -79,14 +104,21 @@ class NetworkPrinterAdvertiser(private val context: Context) {
 
         val repository = CupsRepository.getInstance(context)
         registerAll(manager, repository.printers.value, port, tlsEnabled, airprintCompat)
+        lastSignature = signature(repository.printers.value)
 
-        // React to printers being added/removed after the server has already started.
+        // React to printers being added/removed after the server has already started. The list
+        // re-emits often (every USB permission event reloads it), so only a real change to what we
+        // advertise, and only once it has settled, triggers a re-registration.
         watchJob?.cancel()
+        @OptIn(FlowPreview::class)
         watchJob = advertiseScope.launch {
-            repository.printers.drop(1).collect { printers ->
-                Log.i(TAG, "Printer list changed (${printers.size} printer(s)) — refreshing mDNS advertisements")
-                unregisterAll(manager)
-                registerAll(manager, printers, lastPort, lastTlsEnabled, lastAirprintCompat)
+            repository.printers.map { signature(it) }.distinctUntilChanged().debounce(1500).collect { sig ->
+                if (sig == lastSignature) return@collect
+                lastSignature = sig
+                Log.i(TAG, "Advertised printers changed (${sig.size} printer(s)), refreshing mDNS advertisements")
+                unregisterAllAndWait(manager)
+                delay(400) // let the goodbye packets go out before the names are reused
+                registerAll(manager, repository.printers.value, lastPort, lastTlsEnabled, lastAirprintCompat)
             }
         }
     }
@@ -112,8 +144,7 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         } else {
             for (printer in configuredPrinters) {
                 val serviceName = "${printer.name} (Cuppa)"
-                val cleanName = printer.name.replace(" ", "_")
-                val rp = "printers/$cleanName"
+                val rp = "printers/${PrinterNaming.resourceName(printer.name)}"
                 registerSinglePrinter(
                     manager,
                     serviceName,
@@ -142,12 +173,13 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         tlsEnabled: Boolean = false,
         airprintCompat: Boolean = true
     ) {
-        // Only claim formats the print pipeline can actually turn into printer output. Do NOT
-        // advertise image/pwg-raster or image/urf here — there is no PWG-Raster/URF decoder, and
-        // claiming them makes AirPrint/IPP-Everywhere clients (which prefer raster formats for
-        // driverless queues) send a format the pipeline can't decode, so the job silently produces
-        // no output. See the matching note on PrinterInfo::supportedFormats in cups_server.h.
-        val pdl = supportedFormats.ifEmpty { listOf("application/pdf", "application/octet-stream") }
+        // Keep this identical to the document-format-supported list the native server returns for
+        // the same queue (see populatePrinterAttributes in cups_server.cpp), which never includes
+        // image/urf: URF also needs a "URF" TXT key and a matching urf-supported capability string
+        // that we can't truthfully provide for an arbitrary backing printer, and clients that see
+        // image/urf without them give up on driverless setup and ask the user to pick a driver.
+        val pdl = supportedFormats.filter { it != "image/urf" }
+            .ifEmpty { listOf("application/pdf", "application/octet-stream") }
             .joinToString(",")
 
         val serviceInfo = NsdServiceInfo().apply {
@@ -164,6 +196,13 @@ class NetworkPrinterAdvertiser(private val context: Context) {
             setAttribute("txtvers", "1")
             setAttribute("qtotal", "1")
             setAttribute("note", "Local Android CUPS Print Server")
+            setAttribute("product", "($model)")
+            setAttribute("kind", "document")
+            setAttribute("PaperMax", "legal-A4")
+            setAttribute("Copies", "T")
+            setAttribute("Transparent", "T")
+            setAttribute("Binary", "T")
+            setAttribute("TBCP", "F")
             // Signals opportunistic TLS availability on this same port, per the same "TLS" TXT
             // key convention real IPP Everywhere printers use (PWG 5100.16 section 5.4).
             if (tlsEnabled) setAttribute("TLS", "1.2")
@@ -185,10 +224,12 @@ class NetworkPrinterAdvertiser(private val context: Context) {
 
             override fun onServiceUnregistered(arg0: NsdServiceInfo) {
                 Log.i(TAG, "mDNS service unregistered: ${arg0.serviceName}")
+                unregisterWaiters.remove(this)?.complete(Unit)
             }
 
             override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                 Log.e(TAG, "mDNS unregistration failed for ${serviceInfo.serviceName}: error code $errorCode")
+                unregisterWaiters.remove(this)?.complete(Unit)
             }
         }
 
@@ -211,6 +252,26 @@ class NetworkPrinterAdvertiser(private val context: Context) {
                 Log.w(TAG, "Error unregistering mDNS listener", e)
             }
         }
+        activeListeners.clear()
+        isRegistered = false
+    }
+
+    /** Like [unregisterAll], but suspends until NsdManager confirms each record is withdrawn. */
+    private suspend fun unregisterAllAndWait(manager: NsdManager) {
+        val waits = mutableListOf<CompletableDeferred<Unit>>()
+        for (listener in activeListeners) {
+            val done = CompletableDeferred<Unit>()
+            unregisterWaiters[listener] = done
+            try {
+                manager.unregisterService(listener)
+                waits.add(done)
+            } catch (e: Exception) {
+                // Never finished registering (or already gone); nothing to wait for.
+                unregisterWaiters.remove(listener)
+                Log.w(TAG, "Error unregistering mDNS listener", e)
+            }
+        }
+        withTimeoutOrNull(3000) { waits.forEach { it.await() } }
         activeListeners.clear()
         isRegistered = false
     }

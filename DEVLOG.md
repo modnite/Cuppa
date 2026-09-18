@@ -7,6 +7,40 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: Getting the Rollo to print and fixing macOS
+
+Most of this day went into one printer that would not print. Every test said success. The USB
+transfer finished with no error. Nothing came out.
+
+I tried the obvious things first. TSPL and ZPL both did nothing. Then I asked the printer who it
+was. Its IEEE 1284 ID said `CMD:XPP,XL`. That ruled out plain TSPL and plain ZPL as the whole
+story. What actually broke the case open was the old RolloPrint project sitting on my drive. It
+had a reset command (`~@`) at the front of every job and it sent data in small chunks with a short
+pause between each. It also had a status query (`<ESC>!?`) I had reverse engineered from Wireshark
+captures. I ported all three. The printer stalled once because a previous attempt had filled its
+buffer. After a power cycle it answered "ready" and the whole job went through in two seconds. It
+printed. It ran off the right edge at first. A 4 inch label is 812 dots wide but the head is 832.
+Rendering at 812 and centering fixed that. Then the text ran off the edge. That one was my test
+page using font sizes laid out for Letter paper.
+
+Along the way I found that Cuppa asked for USB permission for every device I plugged in. Audio
+adapters and game controllers included. The manifest filter even had a catch-all in it. It only
+asks about printers now.
+
+The macOS problem turned out to be one character. The IPP server returned URIs with spaces in
+them because printer names have spaces. CUPS treats that as a bad request and drops the whole
+reply. macOS then falls back to "Choose a Driver". I ran CUPS's own `ipptool` and `driverless`
+from a Docker container against the phone. That gave me a real yes or no for the first time
+instead of guessing from screenshots. Fixing the URIs and adding the attributes IPP Everywhere
+expects made `driverless` produce a working PPD for every queue.
+
+Two smaller things came out of the office. A second printer of the same model was hiding the
+first because discovery keyed printers by name. Two Brothers only differ by a "(2)". It keys on
+the mDNS UUID now. And the Available list was showing Cuppa's own shared queues back to me.
+
+I also found out the debug build and the release build both run on the phone. They fight over
+port 631. The debug one gets 8631. I spent a while testing the wrong app because of that.
+
 ## 2026-09-18: First real printer tests, and a crash from having two printers
 
 Took Cuppa to work to test against real hardware for the first time. The Brother MFC-L2717DW
@@ -15,8 +49,8 @@ toner, but the PDF to PWG-Raster path handled it fine and the job spooled clean.
 
 The Rollo USB thermal printer didn't print at all, despite Cuppa reporting a clean USB transfer
 every time. Turned out the connected unit's VID/PID doesn't match either of the two Rollo IDs
-already known to the driver database, so it never got recognized as a Rollo and probably isn't
-even running the TSPL firmware we assumed. Still tracking that one down.
+already known to the driver database, so it never got recognized as a Rollo. I got it printing
+later that day. That story is in the entry above.
 
 Testing this away from home meant no wireless ADB, since the phone and my desktop weren't on the
 same network. Added the phone as a peer on my home WireGuard VPN, which fixed that instantly. No
@@ -29,11 +63,10 @@ The discovered-printer ID only encoded host:port, not the actual queue path, so 
 printers collapsed into one duplicate list key and Compose crashed. Fixed by keying off the full
 URI instead.
 
-Also learned USB permission prompts only ever show up on the phone's own screen while docked to an
-external display, even mid-DeX-session. Confirmed it's not a Cuppa bug: the auto-prompt path fires
-from a broadcast receiver with no display context to anchor to, so Android falls back to the
-built-in screen. Requesting permission manually from inside the app should follow the app's actual
-display instead, since that path carries real Activity context.
+Also learned USB permission prompts show up on the phone's own screen while docked to an external
+display. Runtime permission prompts like notifications do follow the app onto the DeX display. The
+USB one is raised by the system itself with no way to tell it which screen to use. I have not
+found a way around that yet.
 
 ## 2026-09-17: Cutting the APK in half and a cleanup pass
 

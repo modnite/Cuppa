@@ -3,6 +3,33 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-09-18
+
+### Fixed
+- The Rollo X1038 prints over USB. It needs a reset command before every job and its data sent in
+  small paced chunks. Without those it accepted the whole job with no error and did nothing. It
+  also shows up only as a plain "Printer" with its own USB ID (0x09C5 / 0x0588) so it is now
+  recognized and named properly.
+- Labels stay inside the paper. Pages are laid out at true 4 inch width and centered on the print
+  head. Long values on the test label wrap instead of getting cut off.
+- macOS asked for a driver when adding a printer from Cuppa. The IPP server returned URIs with
+  spaces in them so CUPS rejected the whole reply. Queue URIs are clean now and a job goes to the
+  queue it was sent to instead of the default one. CUPS's own driverless tool builds a working PPD
+  for every queue.
+- Job URIs used a stale IP after the phone moved to a different network.
+- Adding a second printer of the same model replaced the first or hid it. Printers are told apart
+  by address and mDNS UUID now.
+- Available Printers no longer lists Cuppa's own shared queues or printers you already added. The
+  "(Cuppa)" tag only shows on My Printers.
+- Cuppa asked for USB permission for every device that got plugged in. That included audio
+  adapters and game controllers. It only asks about printers now.
+- Type ladder and color ramps on the test page no longer run off a 4 inch label.
+
+### Changed
+- Test Print for the Rollo sends the label as a raster image and reads the printer's status first.
+- The format and paper size rows scroll with a mouse wheel.
+- Test Print for a printer Cuppa shares over the network offers the same formats as the USB one.
+
 ## [0.5.6] - 2026-09-18
 
 ### Fixed

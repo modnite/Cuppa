@@ -1,4 +1,6 @@
 #include "cups_server.h"
+#include <algorithm>
+#include <ctime>
 #include <fstream>
 #include <chrono>
 #include <sstream>
@@ -213,6 +215,83 @@ static std::string extractPrinterNameFromUri(const std::string &uri) {
     return uri;
 }
 
+static std::string percentDecode(const std::string &in) {
+    std::string out;
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); i++) {
+        if (in[i] == '%' && i + 2 < in.size() && isxdigit((unsigned char)in[i + 1]) && isxdigit((unsigned char)in[i + 2])) {
+            out.push_back(static_cast<char>(std::stoi(in.substr(i + 1, 2), nullptr, 16)));
+            i += 2;
+        } else {
+            out.push_back(in[i]);
+        }
+    }
+    return out;
+}
+
+// URI-safe form of a printer name: anything outside [A-Za-z0-9._-] becomes '_' (runs collapsed).
+// MUST stay identical to PrinterNaming.resourceName in the Kotlin layer, which uses it for the
+// mDNS "rp" TXT record and the share URI shown in the UI. Printer names routinely contain
+// spaces/parentheses/colons ("USB Printer (0x09C5:0x0588)"), and a URI containing them is invalid:
+// CUPS/macOS reject the whole Get-Printer-Attributes response as bad-request.
+static std::string sanitizeResourceName(const std::string &name) {
+    std::string out;
+    out.reserve(name.size());
+    for (unsigned char c : name) {
+        if (isalnum(c) || c == '.' || c == '-' || c == '_') {
+            out.push_back(static_cast<char>(c));
+        } else if (!out.empty() && out.back() != '_') {
+            out.push_back('_');
+        }
+    }
+    while (!out.empty() && out.back() == '_') out.pop_back();
+    return out.empty() ? "printer" : out;
+}
+
+std::string CupsServer::resolvePrinterNameLocked(const std::string &uriSegment) const {
+    if (uriSegment.empty()) return "";
+    std::string decoded = percentDecode(uriSegment);
+    if (mPrinters.find(decoded) != mPrinters.end()) return decoded;
+    std::string want = sanitizeResourceName(decoded);
+    for (const auto &p : mPrinters) {
+        if (sanitizeResourceName(p.first) == want || strcasecmp(p.first.c_str(), decoded.c_str()) == 0) {
+            return p.first;
+        }
+    }
+    return "";
+}
+
+int32_t CupsServer::queuedJobCountLocked(const std::string &printerName) const {
+    int32_t n = 0;
+    for (const auto &j : mJobs) {
+        if (j.printerName == printerName && (j.state == 3 || j.state == 4 || j.state == 5)) n++;
+    }
+    return n;
+}
+
+std::string CupsServer::hostPortForRequest(const IppMessage &req) const {
+    std::string uri = req.getPrinterUri();
+    if (uri.empty()) {
+        const auto *ju = req.findAttribute("job-uri");
+        if (ju) uri = ju->asString();
+    }
+    size_t schemePos = uri.find("://");
+    if (schemePos != std::string::npos) {
+        size_t hostStart = schemePos + 3;
+        size_t pathStart = uri.find('/', hostStart);
+        std::string hp = (pathStart != std::string::npos) ? uri.substr(hostStart, pathStart - hostStart) : uri.substr(hostStart);
+        if (!hp.empty() && hp.find("localhost") == std::string::npos && hp.find("127.0.0.1") == std::string::npos) {
+            return hp;
+        }
+    }
+    std::string h;
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        h = mHost.empty() ? "localhost" : mHost;
+    }
+    return h + ":" + std::to_string(mPort);
+}
+
 // Deterministically derives an RFC-4122-shaped (version 5 style) UUID string from a name,
 // so the same printer name always advertises the same printer-uuid across restarts, matching
 // the UUID handed out via mDNS TXT records.
@@ -253,27 +332,20 @@ std::shared_ptr<IppMessage> CupsServer::handleGetPrinterAttributes(const IppMess
     std::string printerName = extractPrinterNameFromUri(rawUri);
     PrinterInfo printer;
     bool found = false;
+    int32_t queued = 0;
+    // A request aimed at a specific /printers/<name> queue must never be answered with some other
+    // printer's attributes just because the name didn't match.
+    bool namedQueue = rawUri.find("/printers/") != std::string::npos;
 
     {
         std::lock_guard<std::mutex> lock(mMutex);
-        // 1. Direct name lookup
-        if (!printerName.empty() && mPrinters.find(printerName) != mPrinters.end()) {
-            printer = mPrinters[printerName];
+        std::string resolved = resolvePrinterNameLocked(printerName);
+        if (!resolved.empty()) {
+            printer = mPrinters[resolved];
             found = true;
         }
-        // 2. Lookup by URI or case-insensitive search
-        if (!found) {
-            for (const auto &p : mPrinters) {
-                if (p.second.uri == rawUri || p.second.name == printerName ||
-                    strcasecmp(p.second.name.c_str(), printerName.c_str()) == 0) {
-                    printer = p.second;
-                    found = true;
-                    break;
-                }
-            }
-        }
-        // 3. If requested URI is generic (e.g. /ipp/print, /, /printers), fallback to default or any printer
-        if (!found && !mPrinters.empty()) {
+        // If requested URI is generic (e.g. /ipp/print, /), fall back to default or any printer
+        if (!found && !namedQueue && !mPrinters.empty()) {
             for (const auto &p : mPrinters) {
                 if (p.second.isDefault) {
                     printer = p.second;
@@ -286,6 +358,7 @@ std::shared_ptr<IppMessage> CupsServer::handleGetPrinterAttributes(const IppMess
                 found = true;
             }
         }
+        if (found) queued = queuedJobCountLocked(printer.name);
     }
 
     if (!found) {
@@ -304,14 +377,63 @@ std::shared_ptr<IppMessage> CupsServer::handleGetPrinterAttributes(const IppMess
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
 
-    populatePrinterAttributes(*resp, printer, rawUri);
+    populatePrinterAttributes(*resp, printer, rawUri, queued);
     return resp;
 }
 
-void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &printer, const std::string &requestUri) {
+namespace {
+
+struct MediaDef {
+    const char *name;
+    int32_t x; // 1/100 mm
+    int32_t y;
+};
+
+const MediaDef kMedia[] = {
+    {"na_letter_8.5x11in", 21590, 27940},
+    {"iso_a4_210x297mm", 21000, 29700},
+    {"na_legal_8.5x14in", 21590, 35560},
+    {"na_executive_7.25x10.5in", 18415, 26670},
+    {"iso_a5_148x210mm", 14800, 21000},
+    {"na_index-4x6_4x6in", 10160, 15240},
+    {"oe_receipt_80x297mm", 8000, 29700},
+};
+
+const MediaDef *findMedia(const std::string &name) {
+    for (const auto &m : kMedia) {
+        if (name == m.name) return &m;
+    }
+    return nullptr;
+}
+
+const time_t kProcessStart = time(nullptr);
+
+// Emits the members of one media-col collection (the caller opens/closes the collection itself).
+void addMediaColMembers(IppMessage &r, IppTag g, const MediaDef &m, int32_t margin, const char *type) {
+    r.addCollectionMemberName(g, "media-size");
+    r.beginCollection(g, "");
+    r.addCollectionMemberName(g, "x-dimension");
+    r.addIntAttribute(g, IppTag::INTEGER, "", m.x);
+    r.addCollectionMemberName(g, "y-dimension");
+    r.addIntAttribute(g, IppTag::INTEGER, "", m.y);
+    r.endCollection(g);
+    for (const char *member : {"media-bottom-margin", "media-left-margin", "media-right-margin", "media-top-margin"}) {
+        r.addCollectionMemberName(g, member);
+        r.addIntAttribute(g, IppTag::INTEGER, "", margin);
+    }
+    r.addCollectionMemberName(g, "media-source");
+    r.addAttribute(g, IppTag::KEYWORD, "", "auto");
+    r.addCollectionMemberName(g, "media-type");
+    r.addAttribute(g, IppTag::KEYWORD, "", type);
+}
+
+} // namespace
+
+void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &printer, const std::string &requestUri, int32_t queuedJobs) {
     IppTag grp = IppTag::PRINTER_ATTRIBUTES;
 
-    // Dynamically determine host and port for printer-uri-supported
+    // Host and port the client used to reach us. printer-uri-supported must point back at the
+    // address the client is actually using, not whatever address the server was started on.
     std::string hostPort;
     size_t schemePos = requestUri.find("://");
     if (schemePos != std::string::npos) {
@@ -327,17 +449,72 @@ void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &
         hostPort = h + ":" + std::to_string(mPort);
     }
 
+    // Formats. image/urf is never advertised: URF needs a matching urf-supported capability string
+    // (and the mDNS "URF" TXT key) that we can't truthfully supply for an arbitrary backing
+    // printer, and clients that see image/urf without them abandon driverless setup.
+    std::vector<std::string> formats;
+    for (const auto &f : printer.supportedFormats) {
+        if (f == "image/urf") continue;
+        if (std::find(formats.begin(), formats.end(), f) == formats.end()) formats.push_back(f);
+    }
+    if (formats.empty()) {
+        formats = {"application/pdf", "application/octet-stream"};
+    }
+    bool hasPdf = std::find(formats.begin(), formats.end(), "application/pdf") != formats.end();
+    bool hasPwg = std::find(formats.begin(), formats.end(), "image/pwg-raster") != formats.end();
+    bool hasOctet = std::find(formats.begin(), formats.end(), "application/octet-stream") != formats.end();
+    std::string defaultFormat = hasPdf ? "application/pdf" : (hasOctet ? "application/octet-stream" : formats.front());
+
+    // Printer type (thermal/label vs standard office)
+    bool isThermal = false;
+    std::string lowerModel = printer.makeAndModel;
+    std::transform(lowerModel.begin(), lowerModel.end(), lowerModel.begin(), ::tolower);
+    std::string lowerName = printer.name;
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+
+    if (lowerModel.find("rollo") != std::string::npos ||
+        lowerModel.find("zebra") != std::string::npos ||
+        lowerModel.find("thermal") != std::string::npos ||
+        lowerModel.find("label") != std::string::npos ||
+        lowerModel.find("dymo") != std::string::npos ||
+        lowerModel.find("munbyn") != std::string::npos ||
+        lowerModel.find("tsc") != std::string::npos ||
+        lowerModel.find("pos") != std::string::npos ||
+        lowerName.find("thermal") != std::string::npos ||
+        lowerName.find("label") != std::string::npos ||
+        lowerName.find("receipt") != std::string::npos ||
+        lowerName.find("0x09c5") != std::string::npos) {
+        isThermal = true;
+    }
+    int32_t resDpi = printer.resolutionDpi > 0 ? printer.resolutionDpi : (isThermal ? 203 : 300);
+
+    std::string model = printer.makeAndModel.empty() ? "Generic IPP Printer" : printer.makeAndModel;
+    std::string mfg = model.substr(0, model.find(' '));
+    std::string mdl = model.find(' ') == std::string::npos ? model : model.substr(model.find(' ') + 1);
+    std::string cmd;
+    if (hasPdf) cmd += "PDF,";
+    if (hasPwg) cmd += "PWGRaster,";
+    if (!cmd.empty()) cmd.pop_back();
+
     resp.addAttribute(grp, IppTag::NAME_WITHOUT_LANGUAGE, "printer-name", printer.name);
-    resp.addAttribute(grp, IppTag::URI, "printer-uri-supported", "ipp://" + hostPort + "/printers/" + printer.name);
+    resp.addAttribute(grp, IppTag::URI, "printer-uri-supported", "ipp://" + hostPort + "/printers/" + sanitizeResourceName(printer.name));
+    resp.addAttribute(grp, IppTag::KEYWORD, "uri-security-supported", "none");
+    resp.addAttribute(grp, IppTag::KEYWORD, "uri-authentication-supported", "none");
     resp.addAttribute(grp, IppTag::URI, "printer-uuid", "urn:uuid:" + makeDeterministicUuid(printer.name));
     resp.addAttribute(grp, IppTag::TEXT_WITHOUT_LANGUAGE, "printer-info", printer.info.empty() ? printer.name : printer.info);
     resp.addAttribute(grp, IppTag::TEXT_WITHOUT_LANGUAGE, "printer-location", printer.location.empty() ? "Android CUPS Server" : printer.location);
-    resp.addAttribute(grp, IppTag::TEXT_WITHOUT_LANGUAGE, "printer-make-and-model", printer.makeAndModel.empty() ? "Generic IPP Printer" : printer.makeAndModel);
+    resp.addAttribute(grp, IppTag::TEXT_WITHOUT_LANGUAGE, "printer-make-and-model", model);
+    resp.addAttribute(grp, IppTag::URI, "printer-more-info", "http://" + hostPort + "/");
+    resp.addAttribute(grp, IppTag::TEXT_WITHOUT_LANGUAGE, "printer-device-id",
+                      "MFG:" + mfg + ";MDL:" + mdl + ";CMD:" + cmd + ";CLS:PRINTER;");
 
     // Printer state: 3 = idle, 4 = processing, 5 = stopped
     resp.addIntAttribute(grp, IppTag::ENUM, "printer-state", printer.state);
     resp.addAttribute(grp, IppTag::KEYWORD, "printer-state-reasons", "none");
     resp.addBoolAttribute(grp, "printer-is-accepting-jobs", printer.isAcceptingJobs);
+    resp.addIntAttribute(grp, IppTag::INTEGER, "queued-job-count", queuedJobs);
+    resp.addIntAttribute(grp, IppTag::INTEGER, "printer-up-time", static_cast<int32_t>(time(nullptr) - kProcessStart) + 1);
+    resp.addDateTimeAttribute(grp, "printer-current-time", static_cast<int64_t>(time(nullptr)));
 
     // IPP Versions supported
     resp.addAttribute(grp, IppTag::KEYWORD, "ipp-versions-supported", "1.1");
@@ -356,67 +533,100 @@ void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &
     resp.addIntAttribute(grp, IppTag::ENUM, "operations-supported", static_cast<int32_t>(IppOp::CANCEL_JOB));
     resp.addIntAttribute(grp, IppTag::ENUM, "operations-supported", static_cast<int32_t>(IppOp::GET_PRINTER_ATTRIBUTES));
 
-    // Multiple-operation-time and job-creation attributes that IPP Everywhere / AirPrint
-    // validators check for before treating a queue as "driverless".
     resp.addAttribute(grp, IppTag::KEYWORD, "multiple-operation-time-out-action", "abort-job");
     resp.addIntAttribute(grp, IppTag::INTEGER, "multiple-operation-time-out", 120);
     resp.addAttribute(grp, IppTag::KEYWORD, "compression-supported", "none");
 
     // Formats supported
-    for (const auto &fmt : printer.supportedFormats) {
+    for (const auto &fmt : formats) {
         resp.addAttribute(grp, IppTag::MIME_MEDIA_TYPE, "document-format-supported", fmt);
     }
-    resp.addAttribute(grp, IppTag::MIME_MEDIA_TYPE, "document-format-default", "application/pdf");
-
-    // Determine printer type (thermal/label vs standard office)
-    bool isThermal = false;
-    std::string lowerModel = printer.makeAndModel;
-    std::transform(lowerModel.begin(), lowerModel.end(), lowerModel.begin(), ::tolower);
-    std::string lowerName = printer.name;
-    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
-
-    if (lowerModel.find("rollo") != std::string::npos ||
-        lowerModel.find("zebra") != std::string::npos ||
-        lowerModel.find("thermal") != std::string::npos ||
-        lowerModel.find("label") != std::string::npos ||
-        lowerModel.find("dymo") != std::string::npos ||
-        lowerModel.find("munbyn") != std::string::npos ||
-        lowerModel.find("tsc") != std::string::npos ||
-        lowerModel.find("pos") != std::string::npos ||
-        lowerName.find("thermal") != std::string::npos ||
-        lowerName.find("label") != std::string::npos ||
-        lowerName.find("receipt") != std::string::npos) {
-        isThermal = true;
+    resp.addAttribute(grp, IppTag::MIME_MEDIA_TYPE, "document-format-default", defaultFormat);
+    if (hasPdf) {
+        for (const char *v : {"adobe-1.4", "adobe-1.5", "adobe-1.6", "iso-32000-1_2008"}) {
+            resp.addAttribute(grp, IppTag::KEYWORD, "pdf-versions-supported", v);
+        }
     }
-
-    int32_t resDpi = printer.resolutionDpi > 0 ? printer.resolutionDpi : (isThermal ? 203 : 300);
+    if (hasPwg) {
+        resp.addResolutionAttribute(grp, "pwg-raster-document-resolution-supported", resDpi, resDpi, 3);
+        resp.addAttribute(grp, IppTag::KEYWORD, "pwg-raster-document-sheet-back", "normal");
+        resp.addAttribute(grp, IppTag::KEYWORD, "pwg-raster-document-type-supported", "sgray_8");
+        if (printer.colorSupported) {
+            resp.addAttribute(grp, IppTag::KEYWORD, "pwg-raster-document-type-supported", "srgb_8");
+        }
+    }
 
     // Color & Resolution
     resp.addBoolAttribute(grp, "color-supported", printer.colorSupported);
     resp.addResolutionAttribute(grp, "printer-resolution-supported", resDpi, resDpi, 3); // 3 = dpi
     resp.addResolutionAttribute(grp, "printer-resolution-default", resDpi, resDpi, 3);
+    resp.addAttribute(grp, IppTag::KEYWORD, "print-color-mode-supported", "monochrome");
+    if (printer.colorSupported) {
+        resp.addAttribute(grp, IppTag::KEYWORD, "print-color-mode-supported", "color");
+        resp.addAttribute(grp, IppTag::KEYWORD, "print-color-mode-supported", "auto");
+    }
+    resp.addAttribute(grp, IppTag::KEYWORD, "print-color-mode-default", printer.colorSupported ? "auto" : "monochrome");
+    for (int32_t q : {3, 4, 5}) resp.addIntAttribute(grp, IppTag::ENUM, "print-quality-supported", q);
+    resp.addIntAttribute(grp, IppTag::ENUM, "print-quality-default", 4);
+    for (int32_t o : {3, 4, 5, 6}) resp.addIntAttribute(grp, IppTag::ENUM, "orientation-requested-supported", o);
+    resp.addIntAttribute(grp, IppTag::ENUM, "orientation-requested-default", 3);
+    resp.addIntAttribute(grp, IppTag::ENUM, "finishings-supported", 3);
+    resp.addIntAttribute(grp, IppTag::ENUM, "finishings-default", 3);
+    resp.addIntAttribute(grp, IppTag::INTEGER, "number-up-supported", 1);
+    resp.addIntAttribute(grp, IppTag::INTEGER, "number-up-default", 1);
+    resp.addBoolAttribute(grp, "page-ranges-supported", false);
 
     // Media
+    std::vector<std::string> mediaList;
+    std::string mediaDefault;
     if (isThermal) {
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "na_index-4x6_4x6in");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "oe_receipt_80x297mm");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "na_letter_8.5x11in");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "iso_a4_210x297mm");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-default", "na_index-4x6_4x6in");
+        mediaList = {"na_index-4x6_4x6in", "oe_receipt_80x297mm", "na_letter_8.5x11in", "iso_a4_210x297mm"};
+        mediaDefault = "na_index-4x6_4x6in";
     } else {
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "na_letter_8.5x11in");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "iso_a4_210x297mm");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "na_legal_8.5x14in");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "na_executive_7.25x10.5in");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "iso_a5_148x210mm");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", "na_index-4x6_4x6in");
-        resp.addAttribute(grp, IppTag::KEYWORD, "media-default", "na_letter_8.5x11in");
+        mediaList = {"na_letter_8.5x11in", "iso_a4_210x297mm", "na_legal_8.5x14in", "na_executive_7.25x10.5in", "iso_a5_148x210mm", "na_index-4x6_4x6in"};
+        mediaDefault = "na_letter_8.5x11in";
+    }
+    for (const auto &m : mediaList) resp.addAttribute(grp, IppTag::KEYWORD, "media-supported", m);
+    resp.addAttribute(grp, IppTag::KEYWORD, "media-default", mediaDefault);
+    resp.addAttribute(grp, IppTag::KEYWORD, "media-ready", mediaDefault);
+
+    int32_t margin = isThermal ? 0 : 423;
+    const char *mediaType = isThermal ? "labels" : "stationery";
+    const MediaDef *defMedia = findMedia(mediaDefault);
+    if (defMedia) {
+        resp.beginCollection(grp, "media-col-default");
+        addMediaColMembers(resp, grp, *defMedia, margin, mediaType);
+        resp.endCollection(grp);
+        resp.beginCollection(grp, "media-col-ready");
+        addMediaColMembers(resp, grp, *defMedia, margin, mediaType);
+        resp.endCollection(grp);
+    }
+    bool firstDb = true;
+    for (const auto &m : mediaList) {
+        const MediaDef *md = findMedia(m);
+        if (!md) continue;
+        resp.beginCollection(grp, firstDb ? "media-col-database" : "");
+        addMediaColMembers(resp, grp, *md, margin, mediaType);
+        resp.endCollection(grp);
+        firstDb = false;
+    }
+    for (const char *member : {"media-bottom-margin", "media-left-margin", "media-right-margin", "media-size", "media-source", "media-top-margin", "media-type"}) {
+        resp.addAttribute(grp, IppTag::KEYWORD, "media-col-supported", member);
+    }
+    resp.addAttribute(grp, IppTag::KEYWORD, "media-source-supported", "auto");
+    resp.addAttribute(grp, IppTag::KEYWORD, "media-type-supported", mediaType);
+    for (const char *name : {"media-bottom-margin-supported", "media-left-margin-supported", "media-right-margin-supported", "media-top-margin-supported"}) {
+        resp.addIntAttribute(grp, IppTag::INTEGER, name, margin);
     }
 
     // Sides & Copies
     resp.addAttribute(grp, IppTag::KEYWORD, "sides-supported", "one-sided");
     resp.addAttribute(grp, IppTag::KEYWORD, "sides-default", "one-sided");
+    resp.addRangeAttribute(grp, "copies-supported", 1, 99);
     resp.addIntAttribute(grp, IppTag::INTEGER, "copies-default", 1);
+    for (const char *k : {"copies", "media", "media-col", "orientation-requested", "print-color-mode", "print-quality", "printer-resolution", "sides"}) {
+        resp.addAttribute(grp, IppTag::KEYWORD, "job-creation-attributes-supported", k);
+    }
 
     // PDL Override
     resp.addAttribute(grp, IppTag::KEYWORD, "pdl-override-supported", "not-attempted");
@@ -454,12 +664,17 @@ std::string CupsServer::spoolPathForJob(int32_t jobId) const {
     return mSpoolDir + "/job_" + std::to_string(jobId) + ".prn";
 }
 
-void CupsServer::populateJobAttributes(IppMessage &resp, const PrintJob &job) const {
+void CupsServer::populateJobAttributes(IppMessage &resp, const PrintJob &job, const std::string &hostPortIn) const {
     IppTag jgrp = IppTag::JOB_ATTRIBUTES;
-    std::string jobHost = mHost.empty() ? "localhost" : mHost;
+    // Use the address the client reached us on. The configured mHost is only set when the server
+    // starts, so after the phone changes networks it goes stale and would leak the old IP here.
+    std::string hostPort = hostPortIn;
+    if (hostPort.empty()) {
+        hostPort = (mHost.empty() ? "localhost" : mHost) + ":" + std::to_string(mPort);
+    }
     resp.addIntAttribute(jgrp, IppTag::INTEGER, "job-id", job.jobId);
-    resp.addAttribute(jgrp, IppTag::URI, "job-uri", "ipp://" + jobHost + ":" + std::to_string(mPort) + "/jobs/" + std::to_string(job.jobId));
-    resp.addAttribute(jgrp, IppTag::URI, "job-printer-uri", "ipp://" + jobHost + ":" + std::to_string(mPort) + "/printers/" + job.printerName);
+    resp.addAttribute(jgrp, IppTag::URI, "job-uri", "ipp://" + hostPort + "/jobs/" + std::to_string(job.jobId));
+    resp.addAttribute(jgrp, IppTag::URI, "job-printer-uri", "ipp://" + hostPort + "/printers/" + sanitizeResourceName(job.printerName));
     resp.addAttribute(jgrp, IppTag::NAME_WITHOUT_LANGUAGE, "job-name", job.jobName);
     resp.addAttribute(jgrp, IppTag::NAME_WITHOUT_LANGUAGE, "job-originating-user-name", job.user);
     resp.addIntAttribute(jgrp, IppTag::ENUM, "job-state", job.state);
@@ -477,8 +692,13 @@ std::shared_ptr<IppMessage> CupsServer::handlePrintJob(const IppMessage &req) {
     std::string printerName = extractPrinterNameFromUri(req.getPrinterUri());
     {
         std::lock_guard<std::mutex> lock(mMutex);
-        if (printerName.empty() || mPrinters.find(printerName) == mPrinters.end()) {
+        std::string resolved = resolvePrinterNameLocked(printerName);
+        if (!resolved.empty()) {
+            printerName = resolved;
+        } else if (req.getPrinterUri().find("/printers/") == std::string::npos) {
             printerName = getDefaultPrinterNameLocked(); // Can return "" if no printers exist
+        } else {
+            printerName.clear(); // a specific queue that doesn't exist: don't misroute to the default
         }
     }
 
@@ -520,7 +740,7 @@ std::shared_ptr<IppMessage> CupsServer::handlePrintJob(const IppMessage &req) {
     resp->status = IppStatus::OK;
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
-    populateJobAttributes(*resp, job);
+    populateJobAttributes(*resp, job, hostPortForRequest(req));
 
     LOGI("Successfully created job #%d on printer '%s'", job.jobId, printerName.c_str());
     return resp;
@@ -538,8 +758,13 @@ std::shared_ptr<IppMessage> CupsServer::handleCreateJob(const IppMessage &req) {
     std::string printerName = extractPrinterNameFromUri(req.getPrinterUri());
     {
         std::lock_guard<std::mutex> lock(mMutex);
-        if (printerName.empty() || mPrinters.find(printerName) == mPrinters.end()) {
+        std::string resolved = resolvePrinterNameLocked(printerName);
+        if (!resolved.empty()) {
+            printerName = resolved;
+        } else if (req.getPrinterUri().find("/printers/") == std::string::npos) {
             printerName = getDefaultPrinterNameLocked();
+        } else {
+            printerName.clear();
         }
     }
 
@@ -568,7 +793,7 @@ std::shared_ptr<IppMessage> CupsServer::handleCreateJob(const IppMessage &req) {
     resp->status = IppStatus::OK;
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
-    populateJobAttributes(*resp, job);
+    populateJobAttributes(*resp, job, hostPortForRequest(req));
 
     LOGI("Create-Job opened job #%d on printer '%s', awaiting document", job.jobId, printerName.c_str());
     return resp;
@@ -631,7 +856,7 @@ std::shared_ptr<IppMessage> CupsServer::handleSendDocument(const IppMessage &req
     resp->status = IppStatus::OK;
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
-    populateJobAttributes(*resp, jobCopy);
+    populateJobAttributes(*resp, jobCopy, hostPortForRequest(req));
 
     LOGI("Send-Document: job #%d received %zu bytes (last=%d, wrote=%d), state=%d",
          jobId, req.documentData.size(), lastDocument, wroteDoc, jobCopy.state);
@@ -663,7 +888,7 @@ std::shared_ptr<IppMessage> CupsServer::handleGetJobAttributes(const IppMessage 
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
     if (found) {
-        populateJobAttributes(*resp, jobCopy);
+        populateJobAttributes(*resp, jobCopy, hostPortForRequest(req));
     }
     return resp;
 }
@@ -677,9 +902,25 @@ std::shared_ptr<IppMessage> CupsServer::handleGetJobs(const IppMessage &req) {
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
     resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
 
+    std::string hostPort = hostPortForRequest(req); // takes mMutex itself, so call before locking
+    std::string wantedName;
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        wantedName = resolvePrinterNameLocked(extractPrinterNameFromUri(req.getPrinterUri()));
+    }
+    const auto *whichJobs = req.findAttribute("which-jobs");
+    std::string which = whichJobs ? whichJobs->asString() : "not-completed";
+    const auto *myJobs = req.findAttribute("my-jobs");
+    bool onlyMine = myJobs && myJobs->asBool();
+    std::string me = req.getRequestingUserName();
+
     std::lock_guard<std::mutex> lock(mMutex);
     for (const auto &job : mJobs) {
-        populateJobAttributes(*resp, job);
+        if (!wantedName.empty() && job.printerName != wantedName) continue;
+        bool completed = (job.state >= 7);
+        if (which == "completed" ? !completed : (which == "not-completed" && completed)) continue;
+        if (onlyMine && job.user != me) continue;
+        populateJobAttributes(*resp, job, hostPort);
     }
 
     return resp;
@@ -712,7 +953,7 @@ std::shared_ptr<IppMessage> CupsServer::handleCupsGetPrinters(const IppMessage &
 
     std::lock_guard<std::mutex> lock(mMutex);
     for (const auto &pair : mPrinters) {
-        populatePrinterAttributes(*resp, pair.second);
+        populatePrinterAttributes(*resp, pair.second, "", queuedJobCountLocked(pair.second.name));
     }
 
     return resp;

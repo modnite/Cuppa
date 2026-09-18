@@ -8,6 +8,7 @@ import com.cuppa.app.util.CuppaLog
 import com.cuppa.app.util.safeDescription
 import com.cuppa.app.util.safeProductName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
@@ -23,7 +24,13 @@ class UsbPrinterBackend(private val context: Context) {
         private const val TAG = "UsbPrinterBackend"
         private const val ACTION_USB_PERMISSION = "com.cuppa.app.USB_PERMISSION"
         private const val USB_CLASS_PRINTER = 7
-        private const val CHUNK_SIZE = 16384 // 16 KB transfer chunks
+        // Confirmed against a real Rollo X1038 (VID 0x09C5 / PID 0x0588): a large unpaced chunk
+        // (previously 16KB) reports a clean bulk transfer with no error, but the printer's own
+        // onboard buffer silently drops it and never fires the head. Small chunks with a short
+        // pause between each — matching an earlier working implementation for this exact
+        // hardware — give its buffer time to actually drain.
+        private const val CHUNK_SIZE = 1024
+        private const val INTER_CHUNK_DELAY_MS = 10L
         private const val TIMEOUT_MS = 5000  // 5 seconds bulk transfer timeout
     }
 
@@ -54,7 +61,12 @@ class UsbPrinterBackend(private val context: Context) {
      */
     fun findDeviceByUri(uri: String): UsbDevice? {
         val manager = usbManager ?: return null
-        val clean = uri.removePrefix("usb://").removePrefix("usb:")
+        // Case-insensitive: a URI typed into a UI text field can arrive with its scheme
+        // autocapitalized ("USB://...") by the field's own capitalization rules, which a plain
+        // removePrefix (case-sensitive) silently fails to strip, leaving the VID/PID unparsed and
+        // falling through to the fallback match below.
+        val clean = uri.replaceFirst(Regex("^usb://", RegexOption.IGNORE_CASE), "")
+            .replaceFirst(Regex("^usb:", RegexOption.IGNORE_CASE), "")
         val parts = clean.split('/', '?', ':')
 
         if (parts.size >= 2) {
@@ -74,10 +86,18 @@ class UsbPrinterBackend(private val context: Context) {
             }
         }
 
-        // Fallback: Check if any attached USB device is a printer
+        // Fallback: check if any attached USB device declares an actual USB Printer Class
+        // interface. Deliberately stricter than findPrinterInterfaceAndEndpoint's own fallback
+        // (which also accepts any interface with a bulk OUT endpoint) — that looser check is
+        // fine once we already know which specific device we're talking to, but here it's
+        // choosing WHICH device to target in the first place, and plenty of non-printer USB
+        // peripherals (a USB Ethernet adapter, confirmed live) also expose a bulk OUT endpoint.
         try {
             for ((_, device) in manager.deviceList) {
-                if (findPrinterInterfaceAndEndpoint(device) != null) {
+                val hasPrinterClassInterface = (0 until device.interfaceCount).any { i ->
+                    device.getInterface(i).interfaceClass == USB_CLASS_PRINTER
+                }
+                if (hasPrinterClassInterface) {
                     CuppaLog.i(TAG, "Fallback match to attached USB printer: ${device.safeDescription()}")
                     return device
                 }
@@ -169,6 +189,10 @@ class UsbPrinterBackend(private val context: Context) {
 
                 totalSent += transferred
                 progress?.invoke(totalSent, totalBytes)
+
+                if (totalSent < totalBytes) {
+                    delay(INTER_CHUNK_DELAY_MS)
+                }
             }
 
             CuppaLog.i(TAG, "Successfully transferred $totalSent bytes to ${device.safeDescription()}")
@@ -183,6 +207,50 @@ class UsbPrinterBackend(private val context: Context) {
             } catch (e: Exception) {
                 CuppaLog.w(TAG, "Error closing USB connection", e)
             }
+        }
+    }
+
+    /**
+     * Ask a Rollo-family printer for its real-time hardware status with `<ESC>!?` and read the
+     * one status byte back over bulk IN. Protocol recovered from an earlier from-scratch
+     * reverse-engineering pass on a real Rollo X1038 (VID 0x09C5 / PID 0x0588):
+     * 0x00 ready, bit0 head open, bits1-2 media out, bit5 paused, bit6 printing.
+     */
+    suspend fun queryHardwareStatus(device: UsbDevice): Result<String> = withContext(Dispatchers.IO) {
+        val manager = usbManager ?: return@withContext Result.failure(IOException("USB manager not available"))
+        if (!manager.hasPermission(device)) return@withContext Result.failure(SecurityException("No USB permission"))
+        val (iface, outEp) = findPrinterInterfaceAndEndpoint(device)
+            ?: return@withContext Result.failure(IOException("No printer endpoint"))
+        var inEp: UsbEndpoint? = null
+        for (i in 0 until iface.endpointCount) {
+            val ep = iface.getEndpoint(i)
+            if (ep.direction == UsbConstants.USB_DIR_IN && ep.type == UsbConstants.USB_ENDPOINT_XFER_BULK) inEp = ep
+        }
+        val connection = manager.openDevice(device)
+            ?: return@withContext Result.failure(IOException("Failed to open device"))
+        try {
+            if (!connection.claimInterface(iface, true)) return@withContext Result.failure(IOException("Failed to claim interface"))
+            if (inEp == null) return@withContext Result.failure(IOException("No bulk IN endpoint, cannot read status"))
+            val cmd = byteArrayOf(0x1B, 0x21, 0x3F)
+            val sent = connection.bulkTransfer(outEp, cmd, cmd.size, 1000)
+            if (sent <= 0) return@withContext Result.failure(IOException("Status query send failed ($sent)"))
+            val buf = ByteArray(8)
+            val read = connection.bulkTransfer(inEp, buf, buf.size, 1500)
+            if (read <= 0) return@withContext Result.failure(IOException("No status reply ($read)"))
+            val s = buf[0].toInt() and 0xFF
+            val flags = buildList {
+                if (s == 0) add("ready")
+                if (s and 0x01 != 0) add("head/cover open")
+                if (s and 0x06 != 0) add("media out / gap not found")
+                if (s and 0x20 != 0) add("paused")
+                if (s and 0x40 != 0) add("printing")
+            }
+            val msg = "0x%02X (%s)".format(s, flags.joinToString(", ").ifEmpty { "unknown bits" })
+            CuppaLog.i(TAG, "Hardware status: $msg")
+            connection.releaseInterface(iface)
+            Result.success(msg)
+        } finally {
+            connection.close()
         }
     }
 

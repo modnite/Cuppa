@@ -1,70 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Standard USB Printer Class (Class 7) -->
+    <!--
+        Only offer Cuppa for actual printers. This used to include class 0 (per-interface), class
+        255 (vendor-specific), and a catch-all <usb-device />, which made Android offer Cuppa for
+        every USB device that was plugged in (audio adapters, game controllers, Ethernet dongles)
+        and made Cuppa prompt for permission on all of them.
+    -->
+
+    <!-- Standard USB Printer Class -->
     <usb-device class="7" />
 
-    <!-- Per-Interface and Vendor-Specific classes for thermal & label printers -->
-    <usb-device class="0" />
-    <usb-device class="255" />
+    <!-- Rollo X1038 as it actually enumerates (VID 0x09C5 = 2501, PID 0x0588 = 1416) -->
+    <usb-device vendor-id="2501" product-id="1416" />
 
-    <!-- Rollo X1038 thermal printer (VID: 0x0483 = 1155, PID: 0x5720 = 22304) -->
+    <!-- Other Rollo/thermal label printers: STMicroelectronics-based (VID 0x0483 = 1155) -->
     <usb-device vendor-id="1155" product-id="22304" />
-    <usb-device vendor-id="1155" />
-
-    <!-- Seiko Epson (VID: 0x04B8 = 1208) -->
-    <usb-device vendor-id="1208" />
-
-    <!-- Zebra Technologies (VID: 0x0A5F = 2655) -->
-    <usb-device vendor-id="2655" />
-
-    <!-- Star Micronics (VID: 0x0519 = 1305) -->
-    <usb-device vendor-id="1305" />
-
-    <!-- Brother (VID: 0x04F9 = 1273) -->
-    <usb-device vendor-id="1273" />
-
-    <!-- Dymo (VID: 0x0922 = 2338) -->
-    <usb-device vendor-id="2338" />
-
-    <!-- HP (VID: 0x03F0 = 1008) -->
-    <usb-device vendor-id="1008" />
-
-    <!-- Canon (VID: 0x04A9 = 1193) -->
-    <usb-device vendor-id="1193" />
-
-    <!-- Lexmark (VID: 0x043D = 1085) -->
-    <usb-device vendor-id="1085" />
-
-    <!-- Xprinter / Gprinter (VID: 0x6868 = 26728) -->
-    <usb-device vendor-id="26728" />
-
-    <!-- QinHeng / WCH CH340 USB-Serial (VID: 0x1A86 = 6790) -->
-    <usb-device vendor-id="6790" />
-
-    <!-- Silicon Labs CP210x (VID: 0x10C4 = 4292) -->
-    <usb-device vendor-id="4292" />
-
-    <!-- FTDI (VID: 0x0403 = 1027) -->
-    <usb-device vendor-id="1027" />
-
-    <!-- Besta / Rongta (VID: 0x20D1 = 8401) -->
-    <usb-device vendor-id="8401" />
-
-    <!-- GigaDevice (VID: 0x28E9 = 10473) -->
-    <usb-device vendor-id="10473" />
-
-    <!-- Custom Engineering (VID: 0x0DD4 = 3540) -->
-    <usb-device vendor-id="3540" />
-
-    <!-- Nippon (VID: 0x1504 = 5380) -->
-    <usb-device vendor-id="5380" />
-
-    <!-- ICS Advent (VID: 0x0FE6 = 4070) -->
-    <usb-device vendor-id="4070" />
-
-    <!-- NXP (VID: 0x1FC9 = 8137) -->
-    <usb-device vendor-id="8137" />
-
-    <!-- Generic catch-all USB device for direct OTG attachment -->
-    <usb-device />
 </resources>

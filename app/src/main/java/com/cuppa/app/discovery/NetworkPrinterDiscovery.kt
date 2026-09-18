@@ -64,6 +64,12 @@ class NetworkPrinterDiscovery(private val context: Context) {
     // Track pending resolves to avoid calling resolve on the same service concurrently
     private val pendingResolves = ConcurrentHashMap<String, Boolean>()
 
+    // mDNS service name -> the identity key it resolved to in printersMap. One physical printer
+    // often advertises several names (its own plus a " [macaddress]" one, and both _ipp and
+    // _ipps), and two different printers of the same model can differ ONLY by mDNS's " (2)"
+    // suffix. Entries are therefore keyed by the printer's identity, never by its name.
+    private val nameToKey = ConcurrentHashMap<String, String>()
+
     /**
      * Start discovering IPP printers on the local network.
      */
@@ -179,9 +185,12 @@ class NetworkPrinterDiscovery(private val context: Context) {
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
                 Log.d(TAG, "Service lost: ${serviceInfo.serviceName}")
-                val key = deduplicationKey(serviceInfo.serviceName)
-                printersMap.remove(key)
-                publishPrinters()
+                val key = nameToKey.remove("$scheme:${serviceInfo.serviceName}") ?: return
+                // Only drop the entry once no other advertised name still resolves to it.
+                if (!nameToKey.containsValue(key)) {
+                    printersMap.remove(key)
+                    publishPrinters()
+                }
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
@@ -201,7 +210,7 @@ class NetworkPrinterDiscovery(private val context: Context) {
 
     private fun resolveService(serviceInfo: NsdServiceInfo, scheme: String) {
         val manager = nsdManager ?: return
-        val key = deduplicationKey(serviceInfo.serviceName)
+        val key = "$scheme:${serviceInfo.serviceName}"
 
         // Avoid concurrent resolves for the same service
         if (pendingResolves.putIfAbsent(key, true) != null) {
@@ -263,10 +272,16 @@ class NetworkPrinterDiscovery(private val context: Context) {
 
                     Log.i(TAG, "Resolved: $printerName → $uri ($makeAndModel, driver=$driver)")
 
-                    // Use the deduplicated key; prefer ipps over ipp
-                    val existing = printersMap[key]
+                    // Identity of the physical printer: its mDNS UUID when it advertises one (the
+                    // same across every name and interface it uses, and different between two
+                    // printers of the same model), otherwise where it lives. Prefer ipps over ipp.
+                    val uuid = txtRecords.entries.firstOrNull { it.key.equals("UUID", ignoreCase = true) }
+                        ?.value?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+                    val identity = if (uuid != null) "uuid:$uuid" else "addr:$host:$port/$cleanRp"
+                    nameToKey[key] = identity
+                    val existing = printersMap[identity]
                     if (existing == null || scheme == "ipps") {
-                        printersMap[key] = printer
+                        printersMap[identity] = printer
                     }
                     publishPrinters()
                 }

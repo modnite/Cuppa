@@ -387,7 +387,10 @@ private fun AddedPrinterCard(
             // Printer info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = printer.name.ifBlank { "Unnamed Printer" },
+                    // The " (Cuppa)" suffix is the name other devices see this printer under, i.e. it marks it
+                    // as shared through this print server. It appears only here, never on the
+                    // discovered/available entries.
+                    text = "${printer.name.ifBlank { "Unnamed Printer" }} (Cuppa)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

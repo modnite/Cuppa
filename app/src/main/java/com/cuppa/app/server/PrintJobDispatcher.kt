@@ -164,7 +164,9 @@ class PrintJobDispatcher(
                 // USB laser/inkjet printer sent ZPL or TSPL would accept the bytes and print
                 // nothing, with no error surfaced anywhere.
                 val isEscPos = "esc" in ident || "receipt" in ident || "pos" in ident
-                val isRollo = "rollo" in ident || "1038" in ident || "tspl" in ident
+                // 0x09c5 is the confirmed USB vendor ID of the Rollo X1038 (reports itself only as a generic
+                // "Printer", so its name never contains "rollo"); it lives in the usb:// URI.
+                val isRollo = "rollo" in ident || "1038" in ident || "tspl" in ident || "0x09c5" in ident
                 val isZebra = !isRollo && ("zebra" in ident || "zpl" in ident || "zd4" in ident || "gk4" in ident)
                 val isEltron = "eltron" in ident || "epl" in ident || "lp2844" in ident || "tlp2844" in ident
 
@@ -200,7 +202,7 @@ class PrintJobDispatcher(
                             .cutPaper(partial = true)
                             .build()
                         isRollo -> TsplDriver.fromBitmap(
-                            bitmap,
+                            TsplDriver.centerOnPrintHead(bitmap),
                             density = (tp.darkness / 2).coerceIn(0, 15),
                             speed = tp.speedIps,
                             ditherMode = tp.ditherMode,

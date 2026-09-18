@@ -256,7 +256,13 @@ class UsbPrinterDiscovery(private val context: Context) {
             ""
         }
 
-        val makeAndModel = if (manufacturer.isNotBlank() && !name.startsWith(manufacturer, ignoreCase = true)) {
+        // Descriptor strings like "Printer" say nothing about who made it; prefixing them onto our
+        // database name produced makes like "Printer Rollo X1038".
+        val genericManufacturers = setOf("printer", "usb", "usb printer", "generic", "unknown")
+        val makeAndModel = if (manufacturer.isNotBlank() &&
+            manufacturer.trim().lowercase() !in genericManufacturers &&
+            !name.startsWith(manufacturer, ignoreCase = true)
+        ) {
             "$manufacturer $name"
         } else {
             name

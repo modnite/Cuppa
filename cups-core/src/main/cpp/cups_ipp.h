@@ -26,6 +26,9 @@ enum class IppTag : uint8_t {
     DATE_TIME = 0x31,
     RESOLUTION = 0x32,
     RANGE_OF_INTEGER = 0x33,
+    BEG_COLLECTION = 0x34,
+    END_COLLECTION = 0x37,
+    MEMBER_ATTR_NAME = 0x4A,
     TEXT_WITH_LANGUAGE = 0x35,
     NAME_WITH_LANGUAGE = 0x36,
     TEXT_WITHOUT_LANGUAGE = 0x41,
@@ -141,6 +144,13 @@ public:
     void addIntAttribute(IppTag groupTag, IppTag valueTag, const std::string &name, int32_t value);
     void addBoolAttribute(IppTag groupTag, const std::string &name, bool value);
     void addResolutionAttribute(IppTag groupTag, const std::string &name, int32_t xres, int32_t yres, uint8_t units);
+    void addRangeAttribute(IppTag groupTag, const std::string &name, int32_t lower, int32_t upper);
+    void addDateTimeAttribute(IppTag groupTag, const std::string &name, int64_t epochSeconds);
+    // Collections (RFC 8010 3.1.6): open with beginCollection, add members with addCollectionMember*,
+    // close with endCollection. Pass an empty name for the 2nd+ value of a 1setOf collection.
+    void beginCollection(IppTag groupTag, const std::string &name);
+    void endCollection(IppTag groupTag);
+    void addCollectionMemberName(IppTag groupTag, const std::string &member);
 
     const IppAttribute* findAttribute(const std::string &name) const;
     std::string getPrinterUri() const;

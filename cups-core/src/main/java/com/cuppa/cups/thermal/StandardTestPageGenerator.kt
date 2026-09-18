@@ -43,6 +43,66 @@ object StandardTestPageGenerator {
     }
 
     /**
+     * Draws [text] without letting it run past [maxRight]. Long strings are shrunk to fit when
+     * [shrink] is set (down to a readable minimum), otherwise (or if still too wide) truncated
+     * with an ellipsis. Truncation-only matters for the type-size ladder, which would otherwise
+     * collapse every rung to the same size. The fixed 10-24pt sizes used here were laid out for
+     * Letter, and overflowed the right edge of a 4" label.
+     */
+    private fun drawTextFit(
+        canvas: android.graphics.Canvas,
+        text: String,
+        x: Float,
+        y: Float,
+        paint: Paint,
+        maxRight: Float,
+        shrink: Boolean
+    ) {
+        val maxWidth = maxRight - x
+        val originalSize = paint.textSize
+        if (shrink) {
+            while (paint.measureText(text) > maxWidth && paint.textSize > 6f) {
+                paint.textSize -= 0.5f
+            }
+        }
+        var shown = text
+        if (paint.measureText(text) > maxWidth) {
+            var cut = text
+            while (cut.length > 1 && paint.measureText("$cut…") > maxWidth) cut = cut.dropLast(1)
+            shown = "$cut…"
+        }
+        canvas.drawText(shown, x, y, paint)
+        paint.textSize = originalSize
+    }
+
+    /**
+     * Draws [text] wrapped onto as many lines as needed to stay inside [maxRight], breaking at
+     * any character (these are URIs and identifiers, which have no natural break points).
+     * Returns the y coordinate of the LAST line drawn.
+     */
+    private fun drawTextWrapped(
+        canvas: android.graphics.Canvas,
+        text: String,
+        x: Float,
+        y: Float,
+        paint: Paint,
+        maxRight: Float,
+        lineHeight: Float
+    ): Float {
+        val maxWidth = maxRight - x
+        var rest = text
+        var lineY = y
+        while (rest.isNotEmpty()) {
+            var n = rest.length
+            while (n > 1 && paint.measureText(rest, 0, n) > maxWidth) n--
+            canvas.drawText(rest, 0, n, x, lineY, paint)
+            rest = rest.substring(n)
+            if (rest.isNotEmpty()) lineY += lineHeight
+        }
+        return lineY
+    }
+
+    /**
      * Generate a vector PDF test page with official CUPS color wheel, CMYK color ramps,
      * typography ladder, margin rules, and server metadata.
      */
@@ -96,11 +156,11 @@ object StandardTestPageGenerator {
         textPaint.color = Color.WHITE
         textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
         textPaint.textSize = if (w < 400) 18f else 24f
-        canvas.drawText("CUPPA CUPS PRINT SERVER", 50f, 70f, textPaint)
+        drawTextFit(canvas, "CUPPA CUPS PRINT SERVER", 50f, 70f, textPaint, w - 40f, shrink = true)
 
         textPaint.textSize = if (w < 400) 10f else 12f
         textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-        canvas.drawText("Driverless IPP Everywhere & Android Native Subsystem — $cupsVersion", 50f, 90f, textPaint)
+        drawTextFit(canvas, "Driverless IPP Everywhere & Android Native Subsystem — $cupsVersion", 50f, 90f, textPaint, w - 40f, shrink = true)
 
         // 3. Metadata block
         val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date())
@@ -108,18 +168,19 @@ object StandardTestPageGenerator {
         textPaint.textSize = 10f
 
         var metaY = 125f
+        val valueX = if (w < 400) 116f else 180f
         fun drawMetaRow(label: String, value: String) {
             textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            canvas.drawText(label, 50f, metaY, textPaint)
+            drawTextFit(canvas, label, 50f, metaY, textPaint, w - 40f, shrink = false)
             textPaint.typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
-            canvas.drawText(value, 180f, metaY, textPaint)
-            metaY += 16f
+            val lastY = drawTextWrapped(canvas, value, valueX, metaY, textPaint, w - 40f, lineHeight = 12f)
+            metaY = lastY + 16f
         }
 
         drawMetaRow("PRINTER:", printerName)
         drawMetaRow("SERVER URI:", serverUri)
         drawMetaRow("TRANSPORT:", transport)
-        drawMetaRow("MEDIA SIZE:", "${paperSize.displayName} (${paperSize.widthPoints} × ${paperSize.heightPoints} pt)")
+        drawMetaRow("MEDIA SIZE:", if (w < 400) paperSize.displayName else "${paperSize.displayName} (${paperSize.widthPoints} × ${paperSize.heightPoints} pt)")
         drawMetaRow("TIMESTAMP:", dateStr)
 
         // Divider
@@ -134,7 +195,7 @@ object StandardTestPageGenerator {
             textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             textPaint.textSize = 10f
             textPaint.color = Color.BLACK
-            canvas.drawText("CMYK DENSITY & GRADIENT RAMPS:", 50f, metaY, textPaint)
+            drawTextFit(canvas, "CMYK DENSITY & GRADIENT RAMPS:", 50f, metaY, textPaint, w - 40f, shrink = false)
             metaY += 12f
 
             val rampColors = listOf(
@@ -155,7 +216,7 @@ object StandardTestPageGenerator {
             for ((name, color) in rampColors) {
                 textPaint.textSize = 9f
                 textPaint.typeface = Typeface.DEFAULT
-                canvas.drawText(name, 50f, metaY + 12f, textPaint)
+                drawTextFit(canvas, name, 50f, metaY + 12f, textPaint, w - 40f, shrink = false)
 
                 for (step in 0..5) {
                     val alphaPercent = (step + 1) / 6f
@@ -173,7 +234,7 @@ object StandardTestPageGenerator {
             // RGB Swatches
             metaY += 6f
             textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            canvas.drawText("RGB PRIMARY CHANNELS:", 50f, metaY, textPaint)
+            drawTextFit(canvas, "RGB PRIMARY CHANNELS:", 50f, metaY, textPaint, w - 40f, shrink = false)
             metaY += 12f
 
             val rgbColors = listOf(
@@ -184,7 +245,7 @@ object StandardTestPageGenerator {
             for ((name, color) in rgbColors) {
                 textPaint.textSize = 9f
                 textPaint.typeface = Typeface.DEFAULT
-                canvas.drawText(name, 50f, metaY + 12f, textPaint)
+                drawTextFit(canvas, name, 50f, metaY + 12f, textPaint, w - 40f, shrink = false)
 
                 for (step in 0..5) {
                     val alphaPercent = (step + 1) / 6f
@@ -211,7 +272,7 @@ object StandardTestPageGenerator {
             textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             textPaint.textSize = 10f
             textPaint.color = Color.BLACK
-            canvas.drawText("TYPOGRAPHY & RESOLUTION LADDER:", 50f, metaY, textPaint)
+            drawTextFit(canvas, "TYPOGRAPHY & RESOLUTION LADDER:", 50f, metaY, textPaint, w - 40f, shrink = false)
             metaY += 16f
 
             // Available width matches the 50pt margins used for this section's own header/divider
@@ -231,7 +292,7 @@ object StandardTestPageGenerator {
                 while (textPaint.measureText(label) > maxTextWidth && label.length > 10) {
                     label = label.substring(0, label.length - 1)
                 }
-                canvas.drawText(label, 50f, metaY, textPaint)
+                drawTextFit(canvas, label, 50f, metaY, textPaint, w - 40f, shrink = false)
                 metaY += sz + 5f
             }
         }
@@ -243,12 +304,12 @@ object StandardTestPageGenerator {
         textPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
         textPaint.textSize = 11f
         textPaint.color = Color.rgb(46, 125, 50) // Green pass
-        canvas.drawText("✓ HARDWARE & SUBSYSTEM VERIFIED: CUPS / IPP EVERYWHERE COMPLIANT", 50f, h - 56f, textPaint)
+        drawTextFit(canvas, if (w < 400) "✓ CUPS / IPP EVERYWHERE VERIFIED" else "✓ HARDWARE & SUBSYSTEM VERIFIED: CUPS / IPP EVERYWHERE COMPLIANT", 50f, h - 56f, textPaint, w - 40f, shrink = true)
 
         textPaint.typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
         textPaint.textSize = 8.5f
         textPaint.color = Color.DKGRAY
-        canvas.drawText("Generated natively by Cuppa CUPS Print Server on Android · Page 1 of 1", 50f, h - 42f, textPaint)
+        drawTextFit(canvas, if (w < 400) "Generated by Cuppa on Android" else "Generated natively by Cuppa CUPS Print Server on Android · Page 1 of 1", 50f, h - 42f, textPaint, w - 40f, shrink = true)
 
         document.finishPage(page)
 
