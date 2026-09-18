@@ -109,7 +109,7 @@ class PrintJobDispatcher(
 
     private suspend fun dispatchJob(job: PrintJob, printer: PrinterInfo, spoolFile: File): Boolean {
         return if (printer.uri.startsWith("usb", ignoreCase = true)) {
-            dispatchUsbJob(printer, spoolFile)
+            dispatchUsbJob(job, printer, spoolFile)
         } else if (printer.uri.startsWith("ipp://", ignoreCase = true) || printer.uri.startsWith("http://", ignoreCase = true)) {
             dispatchNetworkIppJob(job, printer, spoolFile)
         } else {
@@ -118,7 +118,7 @@ class PrintJobDispatcher(
         }
     }
 
-    private suspend fun dispatchUsbJob(printer: PrinterInfo, spoolFile: File): Boolean {
+    private suspend fun dispatchUsbJob(job: PrintJob, printer: PrinterInfo, spoolFile: File): Boolean {
         val device = usbBackend.findDeviceByUri(printer.uri)
         if (device == null) {
             Log.e(TAG, "USB printer device not found for URI: ${printer.uri}")
@@ -136,21 +136,23 @@ class PrintJobDispatcher(
                 rawBytes[3] == 'F'.code.toByte()
 
         return if (isPdf) {
-            renderAndPrintPdfToUsb(device, printer, spoolFile)
+            renderAndPrintPdfToUsb(device, printer, spoolFile, job.copies.coerceAtLeast(1))
         } else {
             // Already raw printer language (ZPL, ESC/POS, EPL, TSPL, PCL)
             Log.i(TAG, "Streaming raw print stream (${rawBytes.size} bytes) directly to USB printer")
-            val res = usbBackend.sendRawBytes(device, rawBytes)
-            res.isSuccess
+            var ok = true
+            repeat(job.copies.coerceAtLeast(1)) { if (ok) ok = usbBackend.sendRawBytes(device, rawBytes).isSuccess }
+            ok
         }
     }
 
     private suspend fun renderAndPrintPdfToUsb(
         device: android.hardware.usb.UsbDevice,
         printer: PrinterInfo,
-        spoolFile: File
+        spoolFile: File,
+        copies: Int = 1
     ): Boolean {
-        Log.i(TAG, "Rendering PDF pages for thermal printing to ${printer.name}")
+        Log.i(TAG, "Rendering PDF pages for thermal printing to ${printer.name} ($copies cop${if (copies == 1) "y" else "ies"})")
         val tp = thermalPrefs.settings.value
         return try {
             val pfd = ParcelFileDescriptor.open(spoolFile, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -221,10 +223,12 @@ class PrintJobDispatcher(
                         else -> PclDriver.fromBitmap(bitmap, dpi = 300, ditherMode = tp.ditherMode)
                     }
 
-                    val sendRes = usbBackend.sendRawBytes(device, pagePayload)
-                    if (sendRes.isFailure) {
-                        Log.e(TAG, "Failed sending page $pageIndex: ${sendRes.exceptionOrNull()?.message}")
-                        return false
+                    repeat(copies) {
+                        val sendRes = usbBackend.sendRawBytes(device, pagePayload)
+                        if (sendRes.isFailure) {
+                            Log.e(TAG, "Failed sending page $pageIndex: ${sendRes.exceptionOrNull()?.message}")
+                            return false
+                        }
                     }
                 }
             }
@@ -252,7 +256,7 @@ class PrintJobDispatcher(
         var convertedFile: File? = null
         if (isPdf && supportsPwgRaster && !supportsPdf) {
             val rasterFile = File(spoolFile.parentFile, "${spoolFile.nameWithoutExtension}.ras")
-            if (PwgRasterConverter.convertFirstPageToPwgRaster(spoolFile, rasterFile, printer.colorSupported)) {
+            if (PwgRasterConverter.convertAllPagesToPwgRaster(spoolFile, rasterFile, printer.colorSupported)) {
                 fileToSend = rasterFile
                 convertedFile = rasterFile
                 Log.i(TAG, "Converted job #${job.jobId} PDF to PWG-Raster for ${printer.name}")
@@ -261,10 +265,13 @@ class PrintJobDispatcher(
             }
         }
 
+        // The client's copies count travels with the job; the target printer does the duplication.
+        val copies = job.copies.coerceAtLeast(1)
         val resultJobId = CupsEngine.printFile(
             uri = printer.uri,
             filePath = fileToSend.absolutePath,
-            jobTitle = job.jobName.ifBlank { "Cuppa Network Print" }
+            jobTitle = job.jobName.ifBlank { "Cuppa Network Print" },
+            options = if (copies > 1) mapOf("copies" to copies.toString()) else emptyMap()
         )
         convertedFile?.delete()
         return resultJobId > 0

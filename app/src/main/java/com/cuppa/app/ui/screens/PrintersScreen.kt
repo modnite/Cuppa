@@ -134,7 +134,7 @@ fun PrintersScreen(
         val unpermittedPrinters = remember(usbManager, permEvent) {
             try {
                 usbManager?.deviceList?.values?.filter { device ->
-                    !UsbPermissionHelper.hasPermission(context, device) && (UsbPermissionHelper.isPrinterDevice(device) || device.interfaceCount > 0)
+                    !UsbPermissionHelper.hasPermission(context, device) && UsbPermissionHelper.isPrinterDevice(device)
                 } ?: emptyList()
             } catch (_: Exception) {
                 emptyList()

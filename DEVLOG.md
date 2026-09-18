@@ -7,6 +7,31 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: 28 copies that vanished
+
+I sent a 28 copy PDF to one of the office Brothers from the normal Android print dialog. Nothing
+printed. The Jobs tab said failed.
+
+The log showed the job arriving and being accepted. Then the dispatcher said the spool file was
+missing. The server writes each incoming document to a spool folder and nothing ever created that
+folder. Every job over the network had been quietly lost since the server was first written. My
+own test prints never hit it because those go straight through the app and skip the server.
+
+Fixing it turned up two more gaps. The copies count was never read from the job so it would have
+printed once. And a PDF going to a printer with no PDF support only sent page one. I wrote a
+multi-page raster writer for that. I confirmed the fix on the phone by sending a three copy job to
+the Rollo queue with a harmless reset command as the payload. It spooled and ran three times.
+
+I also found the USB banner still listed audio adapters and disks. One old check let anything
+with an interface through. Gone now.
+
+The USB permission prompt on the DeX display is still unsolved. I tapped Grant from the DeX
+window and looked at where the dialog landed. It was on the phone screen again. The system
+raises it itself and the app has no say in which display gets it.
+
+The macOS driver question is still open too. I added the mDNS keys Apple looks at. I need to try
+it on a real Mac.
+
 ## 2026-09-18: Getting the Rollo to print and fixing macOS
 
 Most of this day went into one printer that would not print. Every test said success. The USB

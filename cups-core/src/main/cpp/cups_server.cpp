@@ -4,6 +4,8 @@
 #include <fstream>
 #include <chrono>
 #include <sstream>
+#include <sys/stat.h>
+#include <cerrno>
 #include <android/log.h>
 
 #define LOG_TAG "CuppaServer"
@@ -28,6 +30,17 @@ bool CupsServer::start(int port, const std::string &spoolDir, const std::string 
     mPort = port;
     mSpoolDir = spoolDir;
     mConfigDir = configDir;
+    // Nothing else creates the spool directory. Without it every incoming job was accepted and
+    // then silently lost: the spool write failed, the job had no file, and it was marked failed.
+    for (size_t i = 1; i <= spoolDir.size(); i++) {
+        if (i == spoolDir.size() || spoolDir[i] == '/') {
+            std::string part = spoolDir.substr(0, i);
+            if (!part.empty() && mkdir(part.c_str(), 0700) != 0 && errno != EEXIST) {
+                LOGE("Could not create spool directory %s (errno=%d)", part.c_str(), errno);
+                break;
+            }
+        }
+    }
     mRunning = true;
     LOGI("CUPS server initialized: port=%d, spool=%s, config=%s", port, spoolDir.c_str(), configDir.c_str());
     return true;
@@ -718,6 +731,9 @@ std::shared_ptr<IppMessage> CupsServer::handlePrintJob(const IppMessage &req) {
         job.jobName = req.getJobName();
         job.user = req.getRequestingUserName();
         job.dataSize = req.documentData.size();
+        if (const auto *c = req.findAttribute("copies")) {
+            job.copies = std::max<int32_t>(1, std::min<int32_t>(999, c->asInt()));
+        }
         job.state = 3; // Pending — PrintJobDispatcher (Kotlin) picks this up asynchronously
         job.createdAt = std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -730,7 +746,16 @@ std::shared_ptr<IppMessage> CupsServer::handlePrintJob(const IppMessage &req) {
                 out.write(reinterpret_cast<const char*>(req.documentData.data()), req.documentData.size());
                 out.close();
                 job.spoolFilePath = spoolPath;
-                LOGI("Spooled job #%d (%zu bytes) to %s", job.jobId, req.documentData.size(), spoolPath.c_str());
+                LOGI("Spooled job #%d (%zu bytes, %d cop%s) to %s", job.jobId, req.documentData.size(),
+                     job.copies, job.copies == 1 ? "y" : "ies", spoolPath.c_str());
+            } else {
+                // Accepting a job we cannot store just makes it vanish. Say so to the client.
+                LOGE("Print-Job rejected: could not open spool file %s (errno=%d)", spoolPath.c_str(), errno);
+                mNextJobId--;
+                resp->status = IppStatus::SERVER_INTERNAL_ERROR;
+                resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::CHARSET, "attributes-charset", "utf-8");
+                resp->addAttribute(IppTag::OPERATION_ATTRIBUTES, IppTag::NATURAL_LANGUAGE, "attributes-natural-language", "en-us");
+                return resp;
             }
         }
 
@@ -783,6 +808,9 @@ std::shared_ptr<IppMessage> CupsServer::handleCreateJob(const IppMessage &req) {
         job.printerName = printerName;
         job.jobName = req.getJobName();
         job.user = req.getRequestingUserName();
+        if (const auto *c = req.findAttribute("copies")) {
+            job.copies = std::max<int32_t>(1, std::min<int32_t>(999, c->asInt()));
+        }
         job.state = 4; // Held — awaiting a Send-Document call
         job.awaitingDocument = true;
         job.createdAt = std::chrono::duration_cast<std::chrono::seconds>(

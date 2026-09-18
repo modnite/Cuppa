@@ -42,7 +42,8 @@ data class PrintJob(
     val state: Int = 9, // 3 = pending, 5 = processing, 7 = canceled, 9 = completed
     val sizeBytes: Long = 0,
     val createdAt: Long = 0,
-    val spoolFilePath: String = ""
+    val spoolFilePath: String = "",
+    val copies: Int = 1
 ) {
     val status: PrintJobStatus
         get() = PrintJobStatus.fromCode(state)
@@ -329,6 +330,26 @@ object CupsEngine {
     }
 
     /**
+     * Writes a multi-page PWG-Raster document. [writePages] receives an appender it calls once per
+     * page, in order, with packed rows (3 bytes/pixel if [colorMode], else 1). Returns false if the
+     * writer could not be opened or any page failed to encode.
+     */
+    suspend fun encodePwgRasterDocument(
+        outputPath: String,
+        colorMode: Boolean,
+        writePages: suspend (addPage: (pixels: ByteArray, width: Int, height: Int, dpi: Int) -> Boolean) -> Boolean
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!isLoaded) return@withContext false
+        val handle = try { nativeBeginPwgRaster(outputPath) } catch (e: Exception) { 0L }
+        if (handle == 0L) return@withContext false
+        try {
+            writePages { pixels, w, h, dpi -> nativeAddPwgRasterPage(handle, pixels, w, h, dpi, colorMode) }
+        } finally {
+            nativeEndPwgRaster(handle)
+        }
+    }
+
+    /**
      * Set the local IP / hostname of the server for dynamic IPP URI attribute generation.
      */
     fun setServerHost(host: String) {
@@ -360,6 +381,9 @@ object CupsEngine {
     private external fun nativeRemovePrinter(name: String): Boolean
     private external fun nativeClearPrinters()
     private external fun nativeSetServerHost(host: String)
+    private external fun nativeBeginPwgRaster(outputPath: String): Long
+    private external fun nativeAddPwgRasterPage(handle: Long, pixels: ByteArray, width: Int, height: Int, dpi: Int, colorMode: Boolean): Boolean
+    private external fun nativeEndPwgRaster(handle: Long)
     private external fun nativeEncodePwgRasterPage(
         rgbPixels: ByteArray,
         width: Int,

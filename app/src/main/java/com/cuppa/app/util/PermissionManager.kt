@@ -89,7 +89,7 @@ object PermissionManager {
         return try {
             manager.deviceList.values.filter { device ->
                 !UsbPermissionHelper.hasPermission(context, device) &&
-                    (UsbPermissionHelper.isPrinterDevice(device) || device.interfaceCount > 0)
+                    UsbPermissionHelper.isPrinterDevice(device)
             }
         } catch (e: Exception) {
             emptyList()

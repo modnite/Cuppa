@@ -428,7 +428,11 @@ Java_com_cuppa_cups_CupsEngine_nativePrintFile(
             const char *keyStr = env->GetStringUTFChars(jKey, nullptr);
             const char *valStr = env->GetStringUTFChars(jVal, nullptr);
 
-            ippAddString(req, IPP_TAG_JOB, IPP_TAG_KEYWORD, keyStr, nullptr, valStr);
+            if (strcmp(keyStr, "copies") == 0) {
+                ippAddInteger(req, IPP_TAG_JOB, IPP_TAG_INTEGER, "copies", atoi(valStr));
+            } else {
+                ippAddString(req, IPP_TAG_JOB, IPP_TAG_KEYWORD, keyStr, nullptr, valStr);
+            }
 
             env->ReleaseStringUTFChars(jKey, keyStr);
             env->ReleaseStringUTFChars(jVal, valStr);
@@ -480,7 +484,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
     jmethodID printJobInit = env->GetMethodID(
         printJobCls,
         "<init>",
-        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IJJLjava/lang/String;)V"
+        "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IJJLjava/lang/String;I)V"
     );
 
     std::string uri;
@@ -502,6 +506,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
         long size;
         long createdAt;
         std::string spoolFilePath;
+        int copies = 1;
     };
     std::vector<JobData> jobsList;
 
@@ -595,6 +600,7 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
         jd.size = (long)lj.dataSize;
         jd.createdAt = lj.createdAt;
         jd.spoolFilePath = lj.spoolFilePath;
+        jd.copies = lj.copies;
         jobsList.push_back(jd);
     }
 
@@ -618,7 +624,8 @@ Java_com_cuppa_cups_CupsEngine_nativeGetJobs(
             (jint)jd.state,
             (jlong)jd.size,
             (jlong)jd.createdAt,
-            jSpool
+            jSpool,
+            (jint)jd.copies
         );
 
         env->SetObjectArrayElement(resultArr, (jsize)i, jJob);
@@ -904,6 +911,85 @@ Java_com_cuppa_cups_CupsEngine_nativeEncodePwgRasterPage(
     LOGI("nativeEncodePwgRasterPage: wrote %dx%d %s page (%u bytes/line) to %s (ok=%d)",
          width, height, type, header.cupsBytesPerLine, path.c_str(), writeOk);
     return writeOk ? JNI_TRUE : JNI_FALSE;
+}
+
+// ---- Multi-page PWG-Raster ---------------------------------------------------------------
+// A PWG-Raster document is one sync word followed by consecutive page blocks written on the same
+// open cups_raster_t, so the writer has to stay open across calls: begin returns a handle, each
+// page appends, end finishes. Pages are supplied one at a time so a long document never has to
+// sit in memory as raw pixels all at once.
+struct PwgRasterWriter {
+    int fd;
+    cups_raster_t *ras;
+};
+
+JNIEXPORT jlong JNICALL
+Java_com_cuppa_cups_CupsEngine_nativeBeginPwgRaster(JNIEnv *env, jobject, jstring jOutputPath) {
+    if (!jOutputPath) return 0;
+    const char *outputPath = env->GetStringUTFChars(jOutputPath, nullptr);
+    std::string path(outputPath ? outputPath : "");
+    env->ReleaseStringUTFChars(jOutputPath, outputPath);
+    if (path.empty()) return 0;
+
+    int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        LOGE("nativeBeginPwgRaster: failed to open %s (errno=%d)", path.c_str(), errno);
+        return 0;
+    }
+    cups_raster_t *ras = cupsRasterOpen(fd, CUPS_RASTER_WRITE_PWG);
+    if (!ras) {
+        LOGE("nativeBeginPwgRaster: cupsRasterOpen failed: %s", cupsRasterErrorString());
+        close(fd);
+        return 0;
+    }
+    return reinterpret_cast<jlong>(new PwgRasterWriter{fd, ras});
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_cuppa_cups_CupsEngine_nativeAddPwgRasterPage(
+    JNIEnv *env, jobject, jlong handle, jbyteArray jPixels, jint width, jint height, jint dpi, jboolean colorMode) {
+    auto *w = reinterpret_cast<PwgRasterWriter *>(handle);
+    if (!w || !jPixels || width <= 0 || height <= 0 || dpi <= 0) return JNI_FALSE;
+
+    pwg_media_t *media = pwgMediaForSize((int)((double)width * 2540.0 / dpi + 0.5),
+                                         (int)((double)height * 2540.0 / dpi + 0.5));
+    if (!media) {
+        LOGE("nativeAddPwgRasterPage: pwgMediaForSize failed for %dx%d @ %d dpi", width, height, dpi);
+        return JNI_FALSE;
+    }
+    cups_page_header2_t header;
+    if (!cupsRasterInitPWGHeader(&header, media, colorMode ? "srgb_8" : "sgray_8", dpi, dpi, "one-sided", nullptr)) {
+        LOGE("nativeAddPwgRasterPage: cupsRasterInitPWGHeader failed: %s", cupsRasterErrorString());
+        return JNI_FALSE;
+    }
+    header.cupsWidth = (unsigned)width;
+    header.cupsHeight = (unsigned)height;
+    header.cupsBytesPerLine = (header.cupsWidth * header.cupsBitsPerPixel + 7) / 8;
+    if (env->GetArrayLength(jPixels) < (jsize)header.cupsBytesPerLine * height) {
+        LOGE("nativeAddPwgRasterPage: pixel buffer too small");
+        return JNI_FALSE;
+    }
+    if (!cupsRasterWriteHeader2(w->ras, &header)) {
+        LOGE("nativeAddPwgRasterPage: cupsRasterWriteHeader2 failed: %s", cupsRasterErrorString());
+        return JNI_FALSE;
+    }
+    jbyte *pixels = env->GetByteArrayElements(jPixels, nullptr);
+    bool ok = true;
+    for (unsigned y = 0; y < header.cupsHeight && ok; y++) {
+        ok = cupsRasterWritePixels(w->ras, (unsigned char *)(pixels + (size_t)y * header.cupsBytesPerLine),
+                                   header.cupsBytesPerLine) != 0;
+    }
+    env->ReleaseByteArrayElements(jPixels, pixels, JNI_ABORT);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_cuppa_cups_CupsEngine_nativeEndPwgRaster(JNIEnv *, jobject, jlong handle) {
+    auto *w = reinterpret_cast<PwgRasterWriter *>(handle);
+    if (!w) return;
+    cupsRasterClose(w->ras);
+    close(w->fd);
+    delete w;
 }
 
 } // extern "C"

@@ -203,6 +203,14 @@ class NetworkPrinterAdvertiser(private val context: Context) {
             setAttribute("Transparent", "T")
             setAttribute("Binary", "T")
             setAttribute("TBCP", "F")
+            setAttribute("Fax", "F")
+            setAttribute("Scan", "F")
+            setAttribute("priority", "0")
+            // Apple's Add Printer dialog decides "AirPrint, no driver needed" from this TXT key
+            // before it ever asks the printer anything. Its absence is what sends users to the
+            // "Choose a Driver" list. "none" is the spec value for a printer that takes PDF but
+            // has no URF raster support, which is the truth here (we never advertise image/urf).
+            setAttribute("URF", "none")
             // Signals opportunistic TLS availability on this same port, per the same "TLS" TXT
             // key convention real IPP Everywhere printers use (PWG 5100.16 section 5.4).
             if (tlsEnabled) setAttribute("TLS", "1.2")

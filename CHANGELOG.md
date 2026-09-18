@@ -3,6 +3,25 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.1] - 2026-09-18
+
+### Fixed
+- Jobs sent from Android's print dialog to a printer shared by Cuppa were accepted and then lost.
+  The spool folder was never created so the document had nowhere to go and the job showed as
+  failed. The folder is created at start now. If a job still cannot be stored the server says so
+  instead of pretending it worked.
+- The number of copies was ignored. It is passed on to network printers and repeated for USB
+  printers.
+- Multi-page PDFs sent to a printer with no PDF support only printed the first page. All pages
+  are converted now.
+- The Dashboard and Printers tab still offered to grant USB access to audio adapters, disks and
+  network dongles. They only list printers now.
+
+### Changed
+- The mDNS record now carries a `URF` key and a few other fields Apple's Add Printer dialog looks
+  at. Without them macOS can ask for a driver before it ever queries the printer. I could not test
+  this on a Mac yet.
+
 ## [0.6.0] - 2026-09-18
 
 ### Fixed
