@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.7] - 2026-09-19
+
+### Fixed
+- Printers found over `ipps://` (secure IPP) failed every job. Cuppa only forwarded to `ipp://`
+  and `http://` addresses. The Epson L3250 at home is advertised as secure so every job to it
+  was aborted. Secure addresses are accepted now and the connection uses TLS from the start.
+
 ## [0.6.6] - 2026-09-18
 
 ### Fixed

@@ -7,6 +7,14 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: Home and the Epson
+
+Got home and tried the Epson through Cuppa from my phone. It failed. The log took one look. The
+dispatcher only knew `ipp://` and `http://`. The Epson shows up on my home network as a secure
+printer, so its address starts with `ipps://` and every job hit an "unsupported transport" check
+and was dropped before anything was sent. At the office the Brother was plain `ipp://` so I never
+saw it. Both spellings work now and secure ones connect with TLS from the first byte.
+
 ## 2026-09-18: The job that never showed up
 
 Three copies printed and the Jobs tab had nothing for it. The job list on the server lives in

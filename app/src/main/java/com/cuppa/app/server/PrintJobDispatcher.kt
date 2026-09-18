@@ -110,7 +110,7 @@ class PrintJobDispatcher(
     private suspend fun dispatchJob(job: PrintJob, printer: PrinterInfo, spoolFile: File): Boolean {
         return if (printer.uri.startsWith("usb", ignoreCase = true)) {
             dispatchUsbJob(job, printer, spoolFile)
-        } else if (printer.uri.startsWith("ipp://", ignoreCase = true) || printer.uri.startsWith("http://", ignoreCase = true)) {
+        } else if (listOf("ipp://", "ipps://", "http://", "https://").any { printer.uri.startsWith(it, ignoreCase = true) }) {
             dispatchNetworkIppJob(job, printer, spoolFile)
         } else {
             Log.w(TAG, "Unsupported transport scheme in printer URI: ${printer.uri}")

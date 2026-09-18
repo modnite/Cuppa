@@ -362,9 +362,13 @@ Java_com_cuppa_cups_CupsEngine_nativePrintFile(
     if (port <= 0) port = 631;
     if (resource[0] == '\0') strncpy(resource, "/ipp/print", sizeof(resource) - 1);
 
-    LOGI("nativePrintFile: calling httpConnect2(%s:%d)...", hostname, port);
+    // ipps:// means TLS from the first byte. Waiting for the printer to ask for an upgrade fails on
+    // printers that only listen for TLS on that port.
+    const bool secureScheme = strcmp(scheme, "ipps") == 0 || strcmp(scheme, "https") == 0;
+    LOGI("nativePrintFile: calling httpConnect2(%s:%d, tls=%d)...", hostname, port, secureScheme ? 1 : 0);
     http_t *http = httpConnect2(hostname, port, nullptr, AF_UNSPEC,
-                                HTTP_ENCRYPTION_IF_REQUESTED, 1, 10000, nullptr);
+                                secureScheme ? HTTP_ENCRYPTION_ALWAYS : HTTP_ENCRYPTION_IF_REQUESTED,
+                                1, 10000, nullptr);
     if (!http) {
         LOGE("nativePrintFile: Failed to connect to %s:%d (%s)", hostname, port, cupsLastErrorString());
         return -1;
