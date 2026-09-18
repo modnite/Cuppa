@@ -7,6 +7,34 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-18: First real printer tests, and a crash from having two printers
+
+Took Cuppa to work to test against real hardware for the first time. The Brother MFC-L2717DW
+laser printer worked over the network on the first try. Black and white only, we're out of color
+toner, but the PDF to PWG-Raster path handled it fine and the job spooled clean.
+
+The Rollo USB thermal printer didn't print at all, despite Cuppa reporting a clean USB transfer
+every time. Turned out the connected unit's VID/PID doesn't match either of the two Rollo IDs
+already known to the driver database, so it never got recognized as a Rollo and probably isn't
+even running the TSPL firmware we assumed. Still tracking that one down.
+
+Testing this away from home meant no wireless ADB, since the phone and my desktop weren't on the
+same network. Added the phone as a peer on my home WireGuard VPN, which fixed that instantly. No
+extra setup needed since the desktop was already reachable from the VPN through my home router.
+
+Once I could reach the phone again, adding the Rollo as a second saved printer immediately crashed
+the Printers tab. Root cause: Cuppa hosts every printer's IPP queue on the same shared port, so
+once there are two or more, their self-advertised mDNS entries all resolve to the same host:port.
+The discovered-printer ID only encoded host:port, not the actual queue path, so two different
+printers collapsed into one duplicate list key and Compose crashed. Fixed by keying off the full
+URI instead.
+
+Also learned USB permission prompts only ever show up on the phone's own screen while docked to an
+external display, even mid-DeX-session. Confirmed it's not a Cuppa bug: the auto-prompt path fires
+from a broadcast receiver with no display context to anchor to, so Android falls back to the
+built-in screen. Requesting permission manually from inside the app should follow the app's actual
+display instead, since that path carries real Activity context.
+
 ## 2026-09-17: Cutting the APK in half and a cleanup pass
 
 Went looking for clutter and half-finished features after getting the icon and screenshots

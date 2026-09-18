@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.5.6] - 2026-09-18
+
+### Fixed
+- Printers tab crashed once a second printer got added. Cuppa hosts every added printer's queue
+  on the same shared IPP port, so their self-advertised mDNS entries all resolved to the same
+  host:port and collapsed into one duplicate list key.
+
 ## [0.5.5] - 2026-09-17
 
 ### Changed

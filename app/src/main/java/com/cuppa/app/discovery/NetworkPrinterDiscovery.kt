@@ -247,7 +247,12 @@ class NetworkPrinterDiscovery(private val context: Context) {
                     }
 
                     val printer = DiscoveredPrinter(
-                        id = "net:$host:$port",
+                        // Includes the resource path, not just host:port. Cuppa hosts every
+                        // added printer's queue on the same shared IPP port, so once more than
+                        // one printer is added, their self-advertised mDNS entries all resolve
+                        // to the same host:port and would otherwise collapse into one id, which
+                        // crashes the Printers tab's LazyColumn (duplicate key).
+                        id = "net:$uri",
                         name = printerName,
                         transport = PrinterTransport.NETWORK,
                         uri = uri,
