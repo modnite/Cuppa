@@ -19,8 +19,8 @@ Notable changes to Cuppa, newest first. Loosely follows
 
 ### Changed
 - The mDNS record now carries a `URF` key and a few other fields Apple's Add Printer dialog looks
-  at. Without them macOS can ask for a driver before it ever queries the printer. I could not test
-  this on a Mac yet.
+  at. Without them macOS can ask for a driver before it ever queries the printer. Confirmed on a
+  Mac: printers are found, added and printed to with no driver step.
 
 ## [0.6.0] - 2026-09-18
 

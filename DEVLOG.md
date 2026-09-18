@@ -29,8 +29,9 @@ The USB permission prompt on the DeX display is still unsolved. I tapped Grant f
 window and looked at where the dialog landed. It was on the phone screen again. The system
 raises it itself and the app has no say in which display gets it.
 
-The macOS driver question is still open too. I added the mDNS keys Apple looks at. I need to try
-it on a real Mac.
+The macOS driver question is closed. I added the mDNS keys Apple looks at, mainly `URF=none`. On
+the Mac the printers show up, add with no driver step and print. The fix for that was in the
+mDNS record and not in the IPP replies where I had spent most of the day looking.
 
 ## 2026-09-18: Getting the Rollo to print and fixing macOS
 
