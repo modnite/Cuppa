@@ -13,8 +13,9 @@ At home Windows listed my two office printers next to the two that work. They ca
 from here. Cuppa announced every saved printer all the time. Now it checks each one every 30
 seconds. A network printer has to accept a connection. A USB printer has to be plugged in. One
 that stops answering stays listed for five more minutes so a short blip does not make it vanish.
-The Printers tab shows those as Offline. I have not tested this on the phone yet. That is why it
-is not released.
+The Printers tab shows those as Offline. Tested at home with the Epson. The phone advertised one
+of four printers and Windows found it almost instantly. The slow discovery was mostly Cuppa
+announcing printers that could never answer.
 
 ## 2026-09-19: Windows and the secure connection
 
