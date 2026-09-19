@@ -3,7 +3,7 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.6.14] - 2026-09-19
 
 ### Changed
 - Cuppa only advertises printers that answer. A network printer must accept a connection on its
