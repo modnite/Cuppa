@@ -354,7 +354,13 @@ private fun AddedPrinterCard(
     onRemove: () -> Unit,
     onTestPrint: () -> Unit,
 ) {
-    val stateColor = when (printer.state) {
+    // Set by the reachability check that decides what Cuppa advertises to the network. It only
+    // runs while the server is on, and is empty until the first check finishes.
+    val offlineNames by com.cuppa.app.server.PrinterReachability
+        .getInstance(androidx.compose.ui.platform.LocalContext.current).offline
+        .collectAsState()
+    val isOffline = printer.name in offlineNames
+    val stateColor = if (isOffline) MaterialTheme.colorScheme.outline else when (printer.state) {
         3 -> MaterialTheme.colorScheme.primary          // idle
         4 -> MaterialTheme.colorScheme.tertiary         // processing
         5 -> MaterialTheme.colorScheme.error            // stopped
@@ -446,7 +452,7 @@ private fun AddedPrinterCard(
                         onClick = { },
                         label = {
                             Text(
-                                text = printer.stateName,
+                                text = if (isOffline) "Offline" else printer.stateName,
                                 style = MaterialTheme.typography.labelSmall,
                             )
                         },

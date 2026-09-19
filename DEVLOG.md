@@ -7,6 +7,15 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-19: Only advertise what works
+
+At home Windows listed my two office printers next to the two that work. They can never print
+from here. Cuppa announced every saved printer all the time. Now it checks each one every 30
+seconds. A network printer has to accept a connection. A USB printer has to be plugged in. One
+that stops answering stays listed for five more minutes so a short blip does not make it vanish.
+The Printers tab shows those as Offline. I have not tested this on the phone yet. That is why it
+is not released.
+
 ## 2026-09-19: Windows and the secure connection
 
 Windows saw Cuppa's printers once and then not again. I am on a Windows PC so I asked Windows

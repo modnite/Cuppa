@@ -3,6 +3,16 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- Cuppa only advertises printers that answer. A network printer must accept a connection on its
+  port. A USB printer must be plugged in with permission granted. It checks every 30 seconds and a
+  printer that stops answering stays listed for 5 more minutes so a short blip does not remove it.
+  Before this every saved printer was announced all the time, so a printer left at the office
+  still showed up on other devices at home and failed when picked.
+- Saved printers that do not answer show "Offline" on the Printers tab. Nothing is deleted.
+
 ## [0.6.13] - 2026-09-19
 
 ### Fixed

@@ -16,6 +16,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -39,6 +41,7 @@ class NetworkPrinterAdvertiser(private val context: Context) {
 
     companion object {
         private const val TAG = "NetworkPrinterAdvertiser"
+        private const val REACHABILITY_INTERVAL_MS = 30_000L
 
         // Registering with a comma-separated subtype is Android NsdManager's documented way to
         // additionally advertise `_universal._sub._ipp._tcp`, the subtype Apple's AirPrint
@@ -70,6 +73,7 @@ class NetworkPrinterAdvertiser(private val context: Context) {
 
     private fun signature(printers: List<PrinterInfo>) =
         printers.map { AdvertisedPrinter(it.name, it.makeAndModel, it.colorSupported, it.supportedFormats) }
+    private val reachability = PrinterReachability.getInstance(context)
     private val advertiseScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var watchJob: Job? = null
     private var lastPort: Int = 631
@@ -103,22 +107,30 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         acquireMulticastLock()
 
         val repository = CupsRepository.getInstance(context)
-        registerAll(manager, repository.printers.value, port, tlsEnabled, airprintCompat)
-        lastSignature = signature(repository.printers.value)
 
-        // React to printers being added/removed after the server has already started. The list
-        // re-emits often (every USB permission event reloads it), so only a real change to what we
-        // advertise, and only once it has settled, triggers a re-registration.
+        // Only printers that answer are advertised. Every saved printer used to be announced
+        // whether or not it could be reached, so a printer left at the office still showed up in
+        // Windows and Macs at home and failed when picked. The list is rechecked on a timer and
+        // whenever the saved printers change. It re-emits often (every USB permission event
+        // reloads it), so only a real change to what we advertise triggers a re-registration.
         watchJob?.cancel()
+        lastSignature = null
         @OptIn(FlowPreview::class)
         watchJob = advertiseScope.launch {
-            repository.printers.map { signature(it) }.distinctUntilChanged().debounce(1500).collect { sig ->
+            val ticks = flow { while (true) { emit(Unit); delay(REACHABILITY_INTERVAL_MS) } }
+            combine(repository.printers.debounce(1500), ticks) { printers, _ -> printers }.collect { printers ->
+                reachability.refresh(printers)
+                val advertised = reachability.advertisable(printers)
+                val sig = signature(advertised)
                 if (sig == lastSignature) return@collect
+                val first = lastSignature == null
                 lastSignature = sig
-                Log.i(TAG, "Advertised printers changed (${sig.size} printer(s)), refreshing mDNS advertisements")
-                unregisterAllAndWait(manager)
-                delay(400) // let the goodbye packets go out before the names are reused
-                registerAll(manager, repository.printers.value, lastPort, lastTlsEnabled, lastAirprintCompat)
+                Log.i(TAG, "Advertising ${sig.size} of ${printers.size} saved printer(s): ${advertised.map { it.name }}")
+                if (!first) {
+                    unregisterAllAndWait(manager)
+                    delay(400) // let the goodbye packets go out before the names are reused
+                }
+                registerAll(manager, advertised, lastPort, lastTlsEnabled, lastAirprintCompat)
             }
         }
     }
