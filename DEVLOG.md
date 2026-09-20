@@ -15,8 +15,11 @@ sharing a printer wants to know. Is it on, what is it sharing and how do I conne
 developer tools are still there under Advanced. Added a side rail for wide windows and cleaned up
 the Jobs and Printers screens. Settings is still one long list and is next.
 
-I could not look at any of it running. My computer's C drive has 0.2 GB free so the emulator
-refuses to start, and the phone was offline. It compiles and the tests pass. That is all I can say.
+I looked at it on my phone once the disk had space and the phone was awake. The phone layout
+works. I found and fixed a printer name getting cut off, a fake address before any printer was
+added and the Dashboard flashing "off" for a second while Cuppa was on. The wide layout with the
+side rail is the one part nobody has seen yet. It needs the DeX display. Settings turned out to
+be grouped already so I left it alone.
 
 ## 2026-09-19: Only advertise what works
 

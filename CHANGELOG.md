@@ -3,7 +3,7 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.7.0] - 2026-09-20
 
 ### Changed
 - The Dashboard is a real home screen. It says whether Cuppa is on and how many printers it is
@@ -17,6 +17,9 @@ Notable changes to Cuppa, newest first. Loosely follows
   to check.
 - Printer cards show a badge for USB or network, and removing a printer asks first.
 - The USB permission wording says the prompt appears on the phone's own screen.
+- Printer names on the Printers tab wrap to two lines instead of being cut off.
+- The Dashboard shows the real server state the moment it opens. It used to say Cuppa was off
+  for a second while it was on.
 
 ## [0.6.14] - 2026-09-19
 

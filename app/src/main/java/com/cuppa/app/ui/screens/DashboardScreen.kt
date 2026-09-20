@@ -386,7 +386,14 @@ private fun ConnectCard(deviceIp: String, port: Int, firstPrinter: String?) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(
+            if (firstPrinter == null) {
+                Text(
+                    "Add a printer and its address shows up here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            if (firstPrinter != null) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
@@ -396,7 +403,7 @@ private fun ConnectCard(deviceIp: String, port: Int, firstPrinter: String?) {
             ) {
                 Text(
                     text = address,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.weight(1f),
                 )
@@ -413,7 +420,7 @@ private fun ConnectCard(deviceIp: String, port: Int, firstPrinter: String?) {
             }
             HowTo("iPhone, iPad and Mac", "Open the print dialog and pick the printer marked (Cuppa). On a Mac you can also add it in System Settings, Printers & Scanners. No driver is needed.")
             HowTo("Windows", "Open Settings, Bluetooth & devices, Printers & scanners, then Add device. Pick the printer marked (Cuppa).")
-            HowTo("Linux", "It shows up in the print dialog. Or run: lpadmin -p cuppa -E -v $address -m everywhere")
+            HowTo("Linux", if (firstPrinter != null) "It shows up in the print dialog. Or run: lpadmin -p cuppa -E -v $address -m everywhere" else "It shows up in the print dialog once a printer is added.")
             HowTo("Other Android phones", "Open Settings, Connected devices, Printing, then Default Print Service. Add a printer and use the address above.")
         }
     }

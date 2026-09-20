@@ -57,6 +57,7 @@ class DashboardViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = DashboardUiState(
+            serverState = repository.serverState.value,
             nativeVersion = repository.getNativeVersion()
         )
     )

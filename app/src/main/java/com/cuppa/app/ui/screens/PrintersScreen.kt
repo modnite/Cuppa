@@ -408,7 +408,7 @@ private fun AddedPrinterCard(
                     text = "${printer.name.ifBlank { "Unnamed Printer" }} (Cuppa)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (printer.makeAndModel.isNotBlank()) {
