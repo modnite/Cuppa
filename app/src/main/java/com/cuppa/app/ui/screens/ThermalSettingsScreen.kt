@@ -1,5 +1,6 @@
 package com.cuppa.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -85,6 +86,9 @@ fun ThermalSettingsScreen(
             )
         }
     ) { paddingValues ->
+        androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+        androidx.compose.foundation.layout.Box(modifier = Modifier.widthIn(max = 960.dp).fillMaxSize()) {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -303,7 +307,10 @@ fun ThermalSettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
-    }
+    
+        }
+        }
+}
 }
 
 @Composable

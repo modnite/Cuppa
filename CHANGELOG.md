@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.2] - 2026-09-20
+
+### Fixed
+- On wide windows the title bar only spanned the middle of the window. The bar now runs edge to
+  edge on every screen. Content is centered under it. Dashboard and Printers use up to 1600 dp.
+  Jobs, Settings and the driver and thermal pages stay at 960 dp so lines stay readable.
+
 ## [0.7.1] - 2026-09-20
 
 ### Changed

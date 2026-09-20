@@ -1,5 +1,6 @@
 package com.cuppa.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -156,6 +157,9 @@ fun DriverManagementScreen(
             )
         }
     ) { paddingValues ->
+        androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+        androidx.compose.foundation.layout.Box(modifier = Modifier.widthIn(max = 960.dp).fillMaxSize()) {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -258,7 +262,10 @@ fun DriverManagementScreen(
                 }
             }
         }
-    }
+    
+        }
+        }
+}
 }
 
 @OptIn(ExperimentalLayoutApi::class)

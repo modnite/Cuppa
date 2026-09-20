@@ -1,5 +1,6 @@
 package com.cuppa.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -96,6 +97,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize(),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
         TopAppBar(
             title = {
@@ -111,6 +113,7 @@ fun SettingsScreen(
 
         Column(
             modifier = Modifier
+                .widthIn(max = 960.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)

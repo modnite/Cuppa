@@ -1,5 +1,6 @@
 package com.cuppa.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,6 +69,7 @@ fun JobsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         TopAppBar(
             title = {
@@ -82,10 +84,10 @@ fun JobsScreen(
         )
 
         if (uiState.activeJobs.isEmpty() && uiState.history.isEmpty()) {
-            EmptyJobsState()
+            androidx.compose.foundation.layout.Box(modifier = Modifier.widthIn(max = 960.dp).fillMaxSize()) { EmptyJobsState() }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.widthIn(max = 960.dp).fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {

@@ -1,5 +1,6 @@
 package com.cuppa.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -128,6 +129,9 @@ fun PrintersScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
+        androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.TopCenter) {
+        androidx.compose.foundation.layout.Box(modifier = Modifier.widthIn(max = 1600.dp).fillMaxSize()) {
+
 
         val context = androidx.compose.ui.platform.LocalContext.current
         val permEvent by UsbPermissionHelper.permissionEvent.collectAsState()
@@ -194,7 +198,10 @@ fun PrintersScreen(
                 onDismiss = { testPrintPrinter = null }
             )
         }
-    }
+    
+        }
+        }
+}
 }
 
 /**

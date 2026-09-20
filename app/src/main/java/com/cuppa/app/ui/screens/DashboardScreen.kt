@@ -1,5 +1,6 @@
 package com.cuppa.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -110,7 +111,7 @@ fun DashboardScreen(
     val permEvent by UsbPermissionHelper.permissionEvent.collectAsState()
     val unpermittedPrinters = remember(permEvent) { PermissionManager.getUnpermittedUsbPrinters(context) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         TopAppBar(
             title = { Text("Cuppa", fontWeight = FontWeight.SemiBold) },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -118,7 +119,7 @@ fun DashboardScreen(
 
         // What Cuppa is doing sits on the left. How to use it sits on the right. On a phone the two
         // simply stack.
-        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.widthIn(max = 1600.dp).fillMaxSize()) {
         val twoColumns = maxWidth >= 840.dp
         val left: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
             StatusHero(
