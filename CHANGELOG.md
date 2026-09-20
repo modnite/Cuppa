@@ -3,6 +3,12 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.3] - 2026-09-20
+
+### Changed
+- Settings uses two columns on wide windows. Permissions and Server sit on the left. Drivers and
+  App sit on the right. Phones still get one column.
+
 ## [0.7.2] - 2026-09-20
 
 ### Fixed

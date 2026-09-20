@@ -94,6 +94,9 @@ fun SettingsScreen(
         ShizukuHelper.updateState()
     }
 
+    // Two columns of sections once the window is wide enough; one column otherwise.
+    val wideSettings = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 900
+
     Column(
         modifier = Modifier
             .fillMaxSize(),
@@ -113,13 +116,14 @@ fun SettingsScreen(
 
         Column(
             modifier = Modifier
-                .widthIn(max = 960.dp)
+                .widthIn(max = if (wideSettings) 1600.dp else 960.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .padding(top = 12.dp, bottom = 24.dp),
         ) {
             // Permissions & System Access Section
+            val settingsLeft: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
             SettingsGroup(title = "Permissions & System Access") {
                 var notifGranted by remember { mutableStateOf(PermissionManager.hasNotificationPermission(context)) }
                 var batteryExempt by remember { mutableStateOf(PermissionManager.isBatteryOptimizationIgnored(context)) }
@@ -204,6 +208,8 @@ fun SettingsScreen(
             }
 
             // Drivers & Printers
+            }
+            val settingsRight: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
             SettingsGroup(title = "Drivers & Printers") {
                 SettingsItem(
                     icon = Icons.Outlined.Extension,
@@ -255,6 +261,19 @@ fun SettingsScreen(
                     subtitle = "v${BuildConfig.VERSION_NAME} • ${CupsEngine.getVersion()}",
                     onClick = { showAboutDialog = true },
                 )
+            }
+            }
+            if (wideSettings) {
+                androidx.compose.foundation.layout.Row(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f), content = settingsLeft)
+                    Column(modifier = Modifier.weight(1f), content = settingsRight)
+                }
+            } else {
+                settingsLeft()
+                settingsRight()
             }
         }
     }
