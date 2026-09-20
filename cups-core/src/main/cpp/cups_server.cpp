@@ -539,8 +539,12 @@ void CupsServer::populatePrinterAttributes(IppMessage &resp, const PrinterInfo &
     if (!cmd.empty()) cmd.pop_back();
 
     resp.addAttribute(grp, IppTag::NAME_WITHOUT_LANGUAGE, "printer-name", printer.name);
-    resp.addAttribute(grp, IppTag::URI, "printer-uri-supported", "ipp://" + hostPort + "/printers/" + sanitizeResourceName(printer.name));
-    resp.addAttribute(grp, IppTag::KEYWORD, "uri-security-supported", "none");
+    // With "Require IPPS" on, plain IPP is refused. Say so, or a client that reads this will try
+    // ipp:// and fail, which is what Linux setup dialogs did.
+    const bool tlsOnly = mTlsRequired.load();
+    resp.addAttribute(grp, IppTag::URI, "printer-uri-supported",
+                      std::string(tlsOnly ? "ipps://" : "ipp://") + hostPort + "/printers/" + sanitizeResourceName(printer.name));
+    resp.addAttribute(grp, IppTag::KEYWORD, "uri-security-supported", tlsOnly ? "tls" : "none");
     resp.addAttribute(grp, IppTag::KEYWORD, "uri-authentication-supported", "none");
     resp.addAttribute(grp, IppTag::URI, "printer-uuid", "urn:uuid:" + makeDeterministicUuid(printer.name));
     resp.addAttribute(grp, IppTag::TEXT_WITHOUT_LANGUAGE, "printer-info", printer.info.empty() ? printer.name : printer.info);

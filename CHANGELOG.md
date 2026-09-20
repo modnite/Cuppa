@@ -3,6 +3,15 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.4] - 2026-09-20
+
+### Fixed
+- With "Require IPPS" on, Linux setup dialogs offered IPP Everywhere and Driverless (IPP). Both
+  fail because Cuppa refuses plain IPP in that mode. Cuppa now advertises its printers as `_ipps`
+  only when secure connections are required, and its IPP replies list an `ipps://` address with
+  `tls` as the security. Only the working Driverless (IPPS) choice is left. With "Require IPPS"
+  off nothing changes.
+
 ## [0.7.3] - 2026-09-20
 
 ### Changed

@@ -7,6 +7,15 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-20: Three ways to add a printer on Linux and only one works
+
+Adding a printer in KDE on Linux was slow and offered three choices. IPP Everywhere, Driverless
+(IPP) and Driverless (IPPS). Only the last one worked. The cause was my own setting. I had "Require
+IPPS" on. Cuppa refused plain IPP but still announced itself as a plain IPP service and its replies
+said plain IPP was fine. Linux believed us. Now when secure connections are required Cuppa
+announces `_ipps` only and its replies say `ipps://` and `tls`. I have not been able to try it in
+KDE. I can check the announcements and the replies from here.
+
 ## 2026-09-20: Filling the empty space
 
 A wide window had the content in one narrow column with a big gap between it and the side rail.

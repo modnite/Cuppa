@@ -48,6 +48,10 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         // discovery specifically looks for on top of the plain `_ipp._tcp` type.
         private const val SERVICE_TYPE_WITH_AIRPRINT = "_ipp._tcp,_universal"
         private const val SERVICE_TYPE_PLAIN = "_ipp._tcp"
+        // Used instead of the two above when plain IPP is refused. Advertising _ipp._tcp then makes
+        // Linux setup dialogs offer IPP Everywhere and Driverless (IPP), both of which fail.
+        private const val SERVICE_TYPE_SECURE_WITH_AIRPRINT = "_ipps._tcp,_universal"
+        private const val SERVICE_TYPE_SECURE_PLAIN = "_ipps._tcp"
         private const val DEFAULT_SERVICE_NAME = "Cuppa Print Server"
     }
 
@@ -198,7 +202,12 @@ class NetworkPrinterAdvertiser(private val context: Context) {
 
         val serviceInfo = NsdServiceInfo().apply {
             this.serviceName = serviceName
-            serviceType = if (airprintCompat) SERVICE_TYPE_WITH_AIRPRINT else SERVICE_TYPE_PLAIN
+            serviceType = when {
+                tlsEnabled && airprintCompat -> SERVICE_TYPE_SECURE_WITH_AIRPRINT
+                tlsEnabled -> SERVICE_TYPE_SECURE_PLAIN
+                airprintCompat -> SERVICE_TYPE_WITH_AIRPRINT
+                else -> SERVICE_TYPE_PLAIN
+            }
             this.port = port
 
             // Standard IPP Everywhere / AirPrint TXT records

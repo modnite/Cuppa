@@ -813,6 +813,12 @@ Java_com_cuppa_cups_CupsEngine_nativeClearPrinters(
 }
 
 JNIEXPORT void JNICALL
+Java_com_cuppa_cups_CupsEngine_nativeSetTlsRequired(JNIEnv *, jobject, jboolean required) {
+    cuppa::CupsServer::getInstance().setTlsRequired(required == JNI_TRUE);
+    LOGI("nativeSetTlsRequired: %d", required == JNI_TRUE ? 1 : 0);
+}
+
+JNIEXPORT void JNICALL
 Java_com_cuppa_cups_CupsEngine_nativeSetServerHost(
     JNIEnv *env,
     jobject /* this */,

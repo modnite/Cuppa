@@ -63,6 +63,9 @@ public:
     std::string getSpoolDir() const { return mSpoolDir; }
     std::string getConfigDir() const { return mConfigDir; }
 
+    /** True when plain IPP is refused, so the queue must be described and advertised as ipps. */
+    void setTlsRequired(bool required) { mTlsRequired = required; }
+
     void setHost(const std::string &host) {
         std::lock_guard<std::mutex> lock(mMutex);
         mHost = host;
@@ -124,6 +127,7 @@ private:
     std::atomic<bool> mRunning{false};
     int mPort = 631;
     std::string mHost = "127.0.0.1";
+    std::atomic<bool> mTlsRequired{false};
     std::string mSpoolDir;
     std::string mConfigDir;
 

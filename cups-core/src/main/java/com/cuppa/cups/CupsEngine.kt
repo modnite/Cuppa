@@ -351,6 +351,16 @@ object CupsEngine {
         }
     }
 
+    /** Tell the IPP replies whether plain IPP is refused, so they advertise ipps:// and tls. */
+    fun setTlsRequired(required: Boolean) {
+        if (!isLoaded) return
+        try {
+            nativeSetTlsRequired(required)
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception setting TLS mode: ${e.message}", e)
+        }
+    }
+
     /**
      * Set the local IP / hostname of the server for dynamic IPP URI attribute generation.
      */
@@ -383,6 +393,7 @@ object CupsEngine {
     private external fun nativeRemovePrinter(name: String): Boolean
     private external fun nativeClearPrinters()
     private external fun nativeSetServerHost(host: String)
+    private external fun nativeSetTlsRequired(required: Boolean)
     private external fun nativeBeginPwgRaster(outputPath: String): Long
     private external fun nativeAddPwgRasterPage(handle: Long, pixels: ByteArray, width: Int, height: Int, dpi: Int, colorMode: Boolean): Boolean
     private external fun nativeEndPwgRaster(handle: Long)

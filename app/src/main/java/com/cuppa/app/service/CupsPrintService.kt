@@ -171,6 +171,8 @@ class CupsPrintService : Service() {
         val success = CupsEngine.startServer(port = preferredPort, configPath = configPath)
         CuppaLog.i(TAG, "Native CUPS server start status: $success (port: $preferredPort)")
 
+        CupsEngine.setTlsRequired(tlsEnabled)
+
         val localIp = com.cuppa.app.util.NetworkUtils.getLocalIpAddress()
         if (!localIp.isNullOrBlank()) {
             CupsEngine.setServerHost(localIp)
