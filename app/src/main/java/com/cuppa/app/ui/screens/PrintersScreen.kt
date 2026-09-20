@@ -200,8 +200,65 @@ fun PrintersScreen(
 /**
  * Main printers content with added and discovered sections.
  */
+private enum class PrinterPart { ALL, LEFT, RIGHT }
+
+/**
+ * Phones get one list. Wide windows split it: the printers you already have on the left and the
+ * ones found nearby on the right, so neither column sits empty.
+ */
 @Composable
 private fun PrintersContent(
+    addedPrinters: List<PrinterInfo>,
+    activePort: Int,
+    discoveredUsbPrinters: List<DiscoveredPrinter>,
+    discoveredNetworkPrinters: List<DiscoveredPrinter>,
+    unpermittedPrinters: List<android.hardware.usb.UsbDevice>,
+    isScanning: Boolean,
+    onRemovePrinter: (String) -> Unit,
+    onAddPrinter: (DiscoveredPrinter) -> Unit,
+    onTestPrint: (PrinterInfo) -> Unit,
+) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        if (maxWidth >= 840.dp) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                for (part in listOf(PrinterPart.LEFT, PrinterPart.RIGHT)) {
+                    PrintersList(
+                        part = part,
+                        modifier = Modifier.weight(1f).fillMaxSize(),
+                        addedPrinters = addedPrinters,
+                        activePort = activePort,
+                        discoveredUsbPrinters = discoveredUsbPrinters,
+                        discoveredNetworkPrinters = discoveredNetworkPrinters,
+                        unpermittedPrinters = unpermittedPrinters,
+                        isScanning = isScanning,
+                        onRemovePrinter = onRemovePrinter,
+                        onAddPrinter = onAddPrinter,
+                        onTestPrint = onTestPrint,
+                    )
+                }
+            }
+        } else {
+            PrintersList(
+                part = PrinterPart.ALL,
+                modifier = Modifier.fillMaxSize(),
+                addedPrinters = addedPrinters,
+                activePort = activePort,
+                discoveredUsbPrinters = discoveredUsbPrinters,
+                discoveredNetworkPrinters = discoveredNetworkPrinters,
+                unpermittedPrinters = unpermittedPrinters,
+                isScanning = isScanning,
+                onRemovePrinter = onRemovePrinter,
+                onAddPrinter = onAddPrinter,
+                onTestPrint = onTestPrint,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrintersList(
+    part: PrinterPart,
+    modifier: Modifier,
     addedPrinters: List<PrinterInfo>,
     activePort: Int,
     discoveredUsbPrinters: List<DiscoveredPrinter>,
@@ -218,10 +275,11 @@ private fun PrintersContent(
     val context = androidx.compose.ui.platform.LocalContext.current
 
     LazyColumn(
+        modifier = modifier,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (unpermittedPrinters.isNotEmpty()) {
+        if (part != PrinterPart.RIGHT && unpermittedPrinters.isNotEmpty()) {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -269,7 +327,7 @@ private fun PrintersContent(
         }
 
         // ---- Added Printers ----
-        if (addedPrinters.isNotEmpty()) {
+        if (part != PrinterPart.RIGHT && addedPrinters.isNotEmpty()) {
             item {
                 Text(
                     text = "Your printers",
@@ -289,9 +347,10 @@ private fun PrintersContent(
         }
 
         // ---- Discovered Printers (collapsible) ----
-        if (discoveredCount > 0 || isScanning) {
+        if (part != PrinterPart.LEFT && (discoveredCount > 0 || isScanning)) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                // Lines the heading up with "Your printers" when the two sit side by side.
+                if (part != PrinterPart.RIGHT) Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

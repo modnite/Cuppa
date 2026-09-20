@@ -7,6 +7,13 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-20: Filling the empty space
+
+A wide window had the content in one narrow column with a big gap between it and the side rail.
+Made the Dashboard and Printers two columns when there is room. I tested it without DeX. scrcpy
+can create a virtual display the size of a desktop and run the app on it. Then I grabbed the
+scrcpy window from Windows. That is a lot faster than finding a monitor.
+
 ## 2026-09-20: A friendlier front door
 
 Asked whether the UX could feel more modern. The Dashboard was mostly developer tooling: a libcups

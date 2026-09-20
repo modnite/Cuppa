@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.1] - 2026-09-20
+
+### Changed
+- Wide windows use two columns. The Dashboard puts what Cuppa is doing on the left and how to
+  connect a device on the right. Printers puts your printers on the left and the ones found nearby
+  on the right. Content can now be up to 1280 dp wide so there is less empty space at the sides.
+
 ## [0.7.0] - 2026-09-20
 
 ### Changed

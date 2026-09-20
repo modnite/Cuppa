@@ -116,14 +116,11 @@ fun DashboardScreen(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 8.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        // What Cuppa is doing sits on the left. How to use it sits on the right. On a phone the two
+        // simply stack.
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val twoColumns = maxWidth >= 840.dp
+        val left: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
             StatusHero(
                 state = uiState.serverState,
                 sharedCount = sharedCount,
@@ -152,7 +149,8 @@ fun DashboardScreen(
                     running = isRunning,
                 )
             }
-
+        }
+        val right: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
             if (isRunning) {
                 ConnectCard(deviceIp = deviceIp, port = currentPort, firstPrinter = uiState.printers.firstOrNull()?.name)
             }
@@ -163,6 +161,26 @@ fun DashboardScreen(
                 deviceIp = deviceIp,
                 port = currentPort,
             )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (twoColumns) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp), content = left)
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp), content = right)
+                }
+            } else {
+                left()
+                right()
+            }
+        }
         }
     }
 }

@@ -213,7 +213,7 @@ fun CuppaApp() {
                     CuppaNavHost(
                         navController = navController,
                         modifier = Modifier
-                            .androidx_widthIn(880)
+                            .androidx_widthIn(1280)
                             .fillMaxSize(),
                     )
                 }
