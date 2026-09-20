@@ -38,6 +38,27 @@ class CuppaApplication : Application() {
         // Initialize Shizuku binder and permission lifecycle listeners
         com.cuppa.app.util.ShizukuHelper.initialize()
 
+        // Keep printer reachability current: on network changes, when the app comes forward and on
+        // a timer that is faster while the app is on screen.
+        val reachability = com.cuppa.app.server.PrinterReachability.getInstance(this)
+        reachability.start()
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            private var started = 0
+            override fun onActivityStarted(activity: android.app.Activity) {
+                started++
+                reachability.setForeground(true)
+            }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                started = (started - 1).coerceAtLeast(0)
+                if (started == 0) reachability.setForeground(false)
+            }
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        })
+
         // Asynchronously initialize and unpack bundled PPD driver assets
         appScope.launch {
             com.cuppa.app.data.ppd.PpdManager(this@CuppaApplication).initializeBundledPpds()

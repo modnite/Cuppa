@@ -41,7 +41,6 @@ class NetworkPrinterAdvertiser(private val context: Context) {
 
     companion object {
         private const val TAG = "NetworkPrinterAdvertiser"
-        private const val REACHABILITY_INTERVAL_MS = 30_000L
 
         // Registering with a comma-separated subtype is Android NsdManager's documented way to
         // additionally advertise `_universal._sub._ipp._tcp`, the subtype Apple's AirPrint
@@ -126,9 +125,8 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         lastSignature = null
         @OptIn(FlowPreview::class)
         watchJob = advertiseScope.launch {
-            val ticks = flow { while (true) { emit(Unit); delay(REACHABILITY_INTERVAL_MS) } }
-            combine(repository.printers.debounce(1500), ticks) { printers, _ -> printers }.collect { printers ->
-                reachability.refresh(printers)
+            reachability.start()
+            combine(repository.printers.debounce(1500), reachability.checks) { printers, _ -> printers }.collect { printers ->
                 val advertised = reachability.advertisable(printers)
                 val sig = signature(advertised)
                 if (sig == lastSignature) return@collect

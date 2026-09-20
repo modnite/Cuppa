@@ -3,6 +3,18 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.6] - 2026-09-20
+
+### Changed
+- Printer status updates faster. Cuppa checks every 10 seconds while the app is on screen and
+  every 30 seconds in the background while the server is on. It also checks at once when the
+  network changes (Wi-Fi, mobile data or a VPN coming or going), when the app comes to the front
+  and when the saved printers change. With the server off and the app in the background it does
+  not probe at all.
+- Labels update even when the server is off, as long as the app is on screen.
+- A failed check tries once more with a longer wait before a printer counts as offline. Fast
+  checks made one printer flicker between Idle and Offline.
+
 ## [0.7.5] - 2026-09-20
 
 ### Changed

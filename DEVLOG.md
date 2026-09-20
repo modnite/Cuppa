@@ -7,6 +7,15 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-20: Faster printer status
+
+The Epson at home took a while to show as offline once I was at work. Status came from a 30 second
+timer that only ran while the server was on. Now the app also checks when the network changes,
+when it comes to the front and every 10 seconds while I am looking at it. A VPN connecting
+triggers a check by itself. Going faster showed a new problem. One Brother flickered between Idle
+and Offline on alternate checks because a sleeping printer sometimes misses a two second
+connection. A failed check now tries once more with a longer wait.
+
 ## 2026-09-20: Three ways to add a printer on Linux and only one works
 
 Adding a printer in KDE on Linux was slow and offered three choices. IPP Everywhere, Driverless
