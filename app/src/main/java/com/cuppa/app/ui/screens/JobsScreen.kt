@@ -112,17 +112,29 @@ fun JobsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "History (${uiState.history.size})",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = "Recent",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
                             )
                             TextButton(onClick = { viewModel.clearHistory() }) {
-                                Text("Clear")
+                                Text("Clear all")
                             }
                         }
                     }
-                    items(uiState.history, key = { "history-${it.jobId}-${it.finishedAt}" }) { entry ->
-                        HistoryJobCard(entry)
+                    // Newest first, grouped under a day heading so a long list stays scannable.
+                    val byDay = uiState.history.groupBy { dayLabel(it.finishedAt) }
+                    for ((day, entries) in byDay) {
+                        item(key = "day-$day") {
+                            Text(
+                                text = day,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                            )
+                        }
+                        items(entries, key = { "history-${it.jobId}-${it.finishedAt}" }) { entry ->
+                            HistoryJobCard(entry)
+                        }
                     }
                 }
             }
@@ -150,11 +162,16 @@ private fun ActiveJobCard(job: PrintJob) {
                     text = job.jobName.ifBlank { "Untitled Job" },
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 Text(
                     text = "${job.printerUri} · ${job.status.displayName} · ${formatBytes(job.sizeBytes)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                androidx.compose.material3.LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(CircleShape),
                 )
             }
         }
@@ -174,11 +191,15 @@ private fun HistoryJobCard(entry: JobHistoryEntry) {
         8 -> "Failed"
         else -> "Finished"
     }
+    val failed = entry.state == 8
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (failed) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+            else MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
     ) {
         Row(
             modifier = Modifier
@@ -199,6 +220,14 @@ private fun HistoryJobCard(entry: JobHistoryEntry) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (failed) {
+                    Text(
+                        text = "The printer did not accept this job. Check that it is on, has paper and is connected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -208,7 +237,7 @@ private fun HistoryJobCard(entry: JobHistoryEntry) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = formatTimestamp(entry.finishedAt),
+                    text = formatTime(entry.finishedAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -256,25 +285,33 @@ private fun EmptyJobsState() {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Jobs will appear here when printing to Cuppa from a network device.",
+                text = "Print something from a phone, laptop or tablet and it will show up here.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Start the server and send a print job to see it here",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center,
             )
         }
     }
 }
 
-private fun formatTimestamp(millis: Long): String {
+private fun formatTime(millis: Long): String {
     if (millis <= 0L) return ""
-    return SimpleDateFormat("MMM d, h:mm a", Locale.US).format(Date(millis))
+    return SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(millis))
+}
+
+private fun dayLabel(millis: Long): String {
+    if (millis <= 0L) return "Earlier"
+    val cal = java.util.Calendar.getInstance()
+    fun dayNumber(c: java.util.Calendar) = c.get(java.util.Calendar.YEAR) * 1000 + c.get(java.util.Calendar.DAY_OF_YEAR)
+    val today = dayNumber(cal)
+    cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+    val yesterday = dayNumber(cal)
+    val then = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+    return when (dayNumber(then)) {
+        today -> "Today"
+        yesterday -> "Yesterday"
+        else -> SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date(millis))
+    }
 }
 
 private fun formatBytes(bytes: Long): String {

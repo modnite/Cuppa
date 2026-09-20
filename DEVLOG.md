@@ -7,6 +7,17 @@ These are written in my own voice, but I'm not the one writing the code. I don't
 experience. Claude (Anthropic's AI) does the actual implementation and debugging. I direct it,
 test everything on real hardware, and decide what Cuppa should do and how it should feel.
 
+## 2026-09-20: A friendlier front door
+
+Asked whether the UX could feel more modern. The Dashboard was mostly developer tooling: a libcups
+query box, engine details and a line about root and Shizuku. I rebuilt it around what someone
+sharing a printer wants to know. Is it on, what is it sharing and how do I connect a device. The
+developer tools are still there under Advanced. Added a side rail for wide windows and cleaned up
+the Jobs and Printers screens. Settings is still one long list and is next.
+
+I could not look at any of it running. My computer's C drive has 0.2 GB free so the emulator
+refuses to start, and the phone was offline. It compiles and the tests pass. That is all I can say.
+
 ## 2026-09-19: Only advertise what works
 
 At home Windows listed my two office printers next to the two that work. They can never print

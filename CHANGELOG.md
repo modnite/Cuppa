@@ -3,6 +3,21 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- The Dashboard is a real home screen. It says whether Cuppa is on and how many printers it is
+  sharing in plain words. A Get started checklist shows until Cuppa is on and a printer is added.
+  A Connect a device card has the address with a copy button and short steps for iPhone and Mac,
+  Windows, Linux and other Android phones. A Your printers card shows which are reachable. The raw
+  IPP query and engine details moved into a collapsed Advanced section.
+- Wide windows such as tablets and DeX get a side rail and content that stops stretching. Phones
+  keep the bottom bar.
+- Jobs are grouped by day. Active jobs show a progress bar. Failed jobs are tinted and say what
+  to check.
+- Printer cards show a badge for USB or network, and removing a printer asks first.
+- The USB permission wording says the prompt appears on the phone's own screen.
+
 ## [0.6.14] - 2026-09-19
 
 ### Changed

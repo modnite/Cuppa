@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -242,13 +243,13 @@ private fun PrintersContent(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "USB Printer Detected",
+                                text = "A USB printer needs permission",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                text = "Grant Android permission to enable communication and printing.",
+                                text = "Android shows the approval prompt on the phone's own screen.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -260,7 +261,7 @@ private fun PrintersContent(
                                 }
                             }
                         ) {
-                            Text("Grant")
+                            Text("Allow")
                         }
                     }
                 }
@@ -271,9 +272,9 @@ private fun PrintersContent(
         if (addedPrinters.isNotEmpty()) {
             item {
                 Text(
-                    text = "My Printers",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = "Your printers",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
                 )
             }
@@ -300,9 +301,9 @@ private fun PrintersContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Available Printers",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = "Found nearby",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     if (discoveredCount > 0) {
                         Spacer(modifier = Modifier.width(6.dp))
@@ -372,7 +373,7 @@ private fun AddedPrinterCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
     ) {
         Row(
             modifier = Modifier
@@ -380,13 +381,21 @@ private fun AddedPrinterCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Printer icon with state color
-            Icon(
-                imageVector = Icons.Outlined.Print,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = stateColor,
-            )
+            // Tonal badge: the icon shows how the printer is connected, the color shows its state.
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(stateColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (printer.uri.startsWith("usb", ignoreCase = true)) Icons.Outlined.Usb else Icons.Outlined.Print,
+                    contentDescription = null,
+                    modifier = Modifier.size(26.dp),
+                    tint = stateColor,
+                )
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -487,12 +496,26 @@ private fun AddedPrinterCard(
                 )
             }
 
-            // Remove button
-            IconButton(onClick = onRemove) {
+            // Remove button. Asks first: one stray tap used to delete a printer outright.
+            var confirmRemove by remember { mutableStateOf(false) }
+            IconButton(onClick = { confirmRemove = true }) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Remove printer",
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (confirmRemove) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { confirmRemove = false },
+                    title = { Text("Remove ${printer.name}?") },
+                    text = { Text("Other devices will stop seeing it. You can add it again later.") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { confirmRemove = false; onRemove() }) { Text("Remove") }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { confirmRemove = false }) { Text("Keep") }
+                    },
                 )
             }
         }

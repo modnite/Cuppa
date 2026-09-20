@@ -7,8 +7,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -178,29 +182,79 @@ fun CuppaApp() {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
+        val navigateTo: (Screen) -> Unit = { screen ->
+            selectedIndex = Screen.bottomNavItems.indexOf(screen)
+            navController.navigate(screen.route) {
+                // Pop to the start destination to avoid building a large back stack
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                // Avoid multiple copies of the same destination
+                launchSingleTop = true
+                // Restore state when re-selecting a previously selected tab
+                restoreState = true
+            }
+        }
+        // Tablets, foldables and DeX windows are wide. Below this the bottom bar suits a thumb.
+        // Above it a side rail keeps navigation in reach and the content stops stretching.
+        val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 720
+
         Scaffold(
             bottomBar = {
-                CuppaBottomNavBar(
-                    currentRoute = currentRoute,
-                    onNavigate = { screen ->
-                        selectedIndex = Screen.bottomNavItems.indexOf(screen)
-                        navController.navigate(screen.route) {
-                            // Pop to the start destination to avoid building a large back stack
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            // Avoid multiple copies of the same destination
-                            launchSingleTop = true
-                            // Restore state when re-selecting a previously selected tab
-                            restoreState = true
-                        }
-                    },
-                )
+                if (!wide) CuppaBottomNavBar(currentRoute = currentRoute, onNavigate = navigateTo)
             },
         ) { innerPadding ->
-            CuppaNavHost(
-                navController = navController,
-                modifier = Modifier.padding(innerPadding),
+            androidx.compose.foundation.layout.Row(modifier = Modifier.padding(innerPadding)) {
+                if (wide) CuppaNavRail(currentRoute = currentRoute, onNavigate = navigateTo)
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                    contentAlignment = androidx.compose.ui.Alignment.TopCenter,
+                ) {
+                    CuppaNavHost(
+                        navController = navController,
+                        modifier = Modifier
+                            .androidx_widthIn(880)
+                            .fillMaxSize(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.androidx_widthIn(maxDp: Int): Modifier =
+    this.then(Modifier.widthIn(max = maxDp.dp))
+
+/**
+ * Side navigation rail for wide windows.
+ */
+@Composable
+private fun CuppaNavRail(
+    currentRoute: String?,
+    onNavigate: (Screen) -> Unit,
+) {
+    val availableUpdate by UpdateManager.availableUpdate.collectAsState()
+    androidx.compose.material3.NavigationRail(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Screen.bottomNavItems.forEach { screen ->
+            val isSelected = currentRoute == screen.route
+            val showUpdateBadge = availableUpdate != null && screen == Screen.Settings
+            androidx.compose.material3.NavigationRailItem(
+                selected = isSelected,
+                onClick = { onNavigate(screen) },
+                icon = {
+                    val icon = if (isSelected) screen.selectedIcon else screen.unselectedIcon
+                    if (showUpdateBadge) {
+                        androidx.compose.material3.BadgedBox(badge = { androidx.compose.material3.Badge() }) {
+                            Icon(imageVector = icon, contentDescription = screen.title)
+                        }
+                    } else {
+                        Icon(imageVector = icon, contentDescription = screen.title)
+                    }
+                },
+                label = { Text(screen.title) },
             )
         }
     }
