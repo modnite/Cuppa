@@ -3,6 +3,13 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.7.5] - 2026-09-20
+
+### Changed
+- A printer whose own address is `ipps://` is announced as `_ipps` only and its IPP reply lists an
+  `ipps://` address with `tls`, even when "Require IPPS" is off. Other printers keep their plain
+  `_ipp` announcement. Linux setup dialogs now offer only the choice that works for them.
+
 ## [0.7.4] - 2026-09-20
 
 ### Fixed

@@ -72,11 +72,16 @@ class NetworkPrinterAdvertiser(private val context: Context) {
         val name: String,
         val model: String,
         val color: Boolean,
-        val formats: List<String>
+        val formats: List<String>,
+        val secure: Boolean
     )
 
     private fun signature(printers: List<PrinterInfo>) =
-        printers.map { AdvertisedPrinter(it.name, it.makeAndModel, it.colorSupported, it.supportedFormats) }
+        printers.map { AdvertisedPrinter(it.name, it.makeAndModel, it.colorSupported, it.supportedFormats, isSecureOnly(it)) }
+
+    /** A printer whose own address is ipps:// is announced as _ipps only, like TLS-required mode. */
+    private fun isSecureOnly(p: PrinterInfo) =
+        p.uri.startsWith("ipps://", ignoreCase = true) || p.uri.startsWith("https://", ignoreCase = true)
     private val reachability = PrinterReachability.getInstance(context)
     private val advertiseScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var watchJob: Job? = null
@@ -170,7 +175,7 @@ class NetworkPrinterAdvertiser(private val context: Context) {
                     printer.colorSupported,
                     printer.name,
                     printer.supportedFormats,
-                    tlsEnabled,
+                    tlsEnabled || isSecureOnly(printer),
                     airprintCompat
                 )
             }

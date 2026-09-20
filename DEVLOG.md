@@ -16,6 +16,10 @@ said plain IPP was fine. Linux believed us. Now when secure connections are requ
 announces `_ipps` only and its replies say `ipps://` and `tls`. I have not been able to try it in
 KDE. I can check the announcements and the replies from here.
 
+Then I made the same rule apply to one printer at a time. If a printer's own address is `ipps://`
+Cuppa announces it as `_ipps` only, whatever the global setting says. I checked it with the Epson.
+The scan showed a single `_ipps` entry and the reply listed an `ipps://` address with `tls`.
+
 ## 2026-09-20: Filling the empty space
 
 A wide window had the content in one narrow column with a big gap between it and the side rail.
