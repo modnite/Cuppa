@@ -20,6 +20,8 @@ export interface PrinterMeta {
   /** Whether this queue is published on the network. */
   shared: boolean;
   createdAt: number;
+  /** The driver actually used when the queue was created (for display). */
+  driver?: string;
 }
 
 export interface StoreData {

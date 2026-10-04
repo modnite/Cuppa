@@ -176,11 +176,7 @@ export async function listPrinters(): Promise<PrinterView[]> {
     const thermal = loadThermalConfig(queue);
     const driver = thermal
       ? `Thermal (${thermal.dialect.toUpperCase()})`
-      : /^(ipp|ipps|dnssd):/i.test(deviceUri)
-        ? "IPP Everywhere"
-        : deviceUri.startsWith("usb:")
-          ? "USB (raw)"
-          : "Raw";
+      : meta?.driver ?? (/^(ipp|ipps|dnssd):/i.test(deviceUri) ? "IPP Everywhere" : deviceUri.startsWith("usb:") ? "USB (raw)" : "Raw");
 
     printers.push({
       queue,
@@ -291,7 +287,13 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
     log.warn(`Queue ${queue} is raw: documents will be passed through unchanged and may not print`);
   }
 
-  store.setMeta(queue, { displayName, location, shared, createdAt: Date.now() });
+  store.setMeta(queue, {
+    displayName,
+    location,
+    shared,
+    createdAt: Date.now(),
+    driver: thermalConfig ? `Thermal (${thermalConfig.dialect.toUpperCase()})` : driver,
+  });
   log.info(
     `Added printer ${queue} (${displayName}) -> ${deviceUri} [${thermalConfig ? `thermal:${thermalConfig.dialect}` : driver}]`
   );
