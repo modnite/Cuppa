@@ -45,6 +45,8 @@ the UI, mDNS advertising through Android's NsdManager, USB device I/O, and job d
   dispatch, network discovery.
 - `cups-core/` is the native CUPS engine module. Ported libcups C sources, JNI bridge, thermal
   printer command language encoders (ESC/POS, ZPL, EPL2, TSPL, PCL).
+- `webapp/` is the Docker web version. A Node/TypeScript control plane over a real CUPS install,
+  a React UI, and Avahi-published Bonjour records. See [`webapp/README.md`](webapp/README.md).
 
 ## Requirements
 
@@ -61,6 +63,22 @@ releases directly, no separate app needed.
 Since this isn't on the Play Store, Android will ask you to allow installs from wherever you're
 installing it (Cuppa itself, your browser, your file manager). That's normal for APKs distributed
 outside a store.
+
+## Web app (NAS)
+
+There is also a web version of Cuppa for running on a home or office NAS. It is a Docker image
+that runs real CUPS and Avahi behind a friendly browser UI, and shares the same printers over
+Bonjour/AirPrint and IPP Everywhere for macOS, iOS and Android.
+
+```sh
+cd webapp
+docker compose pull
+docker compose up -d
+# open http://<nas-ip>:8631
+```
+
+Host networking is required for mDNS discovery. See [`webapp/README.md`](webapp/README.md) for the
+full deployment guide, configuration, USB printer notes and local development setup.
 
 ## Building from source
 

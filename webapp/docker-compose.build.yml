@@ -1,0 +1,12 @@
+# Local-build override. Use together with the main compose file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# This builds the image from the Dockerfile instead of pulling from GHCR.
+
+services:
+  cuppa:
+    image: cuppa-web:dev
+    build:
+      context: .
+      dockerfile: Dockerfile

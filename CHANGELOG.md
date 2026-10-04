@@ -3,6 +3,19 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- A web version of Cuppa for running on a NAS, packaged as a Docker image. It runs real CUPS and
+  Avahi behind a browser UI, and shares printers over Bonjour/AirPrint and IPP Everywhere for
+  macOS, iOS and Android. See [`webapp/README.md`](webapp/README.md).
+- Printers can be renamed. The chosen name is broadcast on the network with " (Cuppa)" appended,
+  while the internal queue name stays the same so jobs and clients are unaffected.
+- The webapp supports thermal label and receipt printers with the same command engines as the
+  Android app (TSPL/Rollo X1038, ZPL, EPL2, ESC/POS, PCL). A generated PPD routes each queue's
+  PDF jobs through a `cuppa-thermal` CUPS filter, so macOS, iOS and Android can print to a thermal
+  printer shared by Cuppa without knowing anything about its command language.
+
 ## [0.7.6] - 2026-09-20
 
 ### Changed

@@ -1,0 +1,44 @@
+# Cuppa web print server.
+#
+# The image is prebuilt and pulled — nothing is compiled on the NAS.
+# Host networking is required so Bonjour/AirPrint discovery reaches the LAN.
+#
+#   docker compose pull
+#   docker compose up -d
+#
+# Then open http://<nas-ip>:8631
+
+services:
+  cuppa:
+    image: ghcr.io/modnite/cuppa-web:latest
+    container_name: cuppa
+    restart: unless-stopped
+
+    # mDNS/AirPrint and CUPS printer discovery only work on the host network.
+    network_mode: host
+
+    environment:
+      TZ: ${TZ:-UTC}
+      CUPPA_WEB_PORT: ${CUPPA_WEB_PORT:-8631}
+      CUPPA_IPP_PORT: ${CUPPA_IPP_PORT:-631}
+      # Optional: set an admin password on first start. Can also be set later
+      # in the web UI under Settings → Security.
+      CUPPA_ADMIN_PASSWORD: ${CUPPA_ADMIN_PASSWORD:-}
+
+    volumes:
+      # Cuppa settings and printer names persist here.
+      - ./data:/data
+      # CUPS queues, PPDs and the TLS certificate persist here too, so printers
+      # survive a container update.
+      - ./data/cups:/etc/cups
+      # Uncomment to share USB printers plugged into the NAS.
+      # - /dev/bus/usb:/dev/bus/usb
+
+    # Some NAS firmwares need these for Avahi/USB access. Harmless otherwise.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - apparmor:unconfined
+    # On a few firmwares USB access still needs full privileges:
+    # privileged: true

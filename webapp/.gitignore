@@ -1,0 +1,11 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Local runtime data (settings, printer names)
+data/
+
+# Local configuration
+.env
+*.log
