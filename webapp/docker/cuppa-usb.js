@@ -22,6 +22,10 @@ const { once } = require("node:events");
 const REAL_BACKEND = process.env.CUPPA_USB_BACKEND || "/usr/lib/cups/backend/usb";
 const CHUNK_SIZE = 1024;
 const INTER_CHUNK_MS = 10;
+// Give the child backend time to open the device and block on its first read,
+// otherwise the first few chunks queue up and it consumes them in one big
+// unpaced write (which is exactly what the printer drops).
+const START_DELAY_MS = Number(process.env.CUPPA_USB_START_DELAY_MS ?? 500);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -65,6 +69,7 @@ child.on("exit", (code, signal) => {
 
 (async () => {
   try {
+    await sleep(START_DELAY_MS);
     for await (const chunk of process.stdin) {
       for (let offset = 0; offset < chunk.length; offset += CHUNK_SIZE) {
         const slice = chunk.subarray(offset, offset + CHUNK_SIZE);

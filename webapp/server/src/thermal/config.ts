@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DitherMode } from "./raster.js";
 
@@ -69,6 +69,17 @@ export function removeThermalConfig(queue: string): void {
     if (existsSync(file)) unlinkSync(file);
   } catch {
     // best effort
+  }
+}
+
+/** Names of the queues that have a thermal configuration on disk. */
+export function listThermalQueues(): string[] {
+  try {
+    return readdirSync(THERMAL_CONFIG_DIR)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => name.slice(0, -".json".length));
+  } catch {
+    return [];
   }
 }
 

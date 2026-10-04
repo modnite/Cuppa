@@ -26,6 +26,7 @@ import { store } from "./store.js";
 import { buildThermalPpd } from "./thermal/ppd.js";
 import {
   defaultThermalConfig,
+  listThermalQueues,
   loadThermalConfig,
   removeThermalConfig,
   saveThermalConfig,
@@ -467,6 +468,29 @@ export async function testPrint(queue: string): Promise<void> {
     } catch {
       // best effort
     }
+  }
+}
+
+/**
+ * Points existing thermal USB queues at the paced cuppa-usb backend. Queues
+ * created before that backend existed use a plain `usb://` URI, which makes the
+ * Rollo X1038 drop the whole label.
+ */
+export async function migrateThermalUsbQueues(): Promise<void> {
+  const thermal = new Set(listThermalQueues());
+  if (thermal.size === 0) return;
+  let printers: PrinterView[];
+  try {
+    printers = await listPrinters();
+  } catch {
+    return;
+  }
+  for (const printer of printers) {
+    if (!thermal.has(printer.queue)) continue;
+    if (!/^usb:\/\//i.test(printer.deviceUri)) continue;
+    const next = printer.deviceUri.replace(/^usb:/i, "cuppa-usb:");
+    const result = await run("lpadmin", ["-p", printer.queue, "-v", next]);
+    if (result.code === 0) log.info(`Migrated ${printer.queue} to the paced USB backend`);
   }
 }
 

@@ -7,6 +7,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import { refreshAdvertisements } from "./advertise.js";
 import { auth } from "./auth.js";
+import { migrateThermalUsbQueues } from "./cups.js";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { registerRoutes } from "./routes.js";
@@ -87,8 +88,13 @@ async function main(): Promise<void> {
   // CUPS can take a moment to finish starting, so retry the first publish a
   // few times instead of waiting a full minute for the periodic refresh.
   let attempts = 0;
+  let migrated = false;
   const kick = async (): Promise<void> => {
     const ok = await refreshAdvertisements();
+    if (ok && !migrated) {
+      migrated = true;
+      void migrateThermalUsbQueues();
+    }
     attempts += 1;
     if (!ok && attempts < 20) {
       setTimeout(() => void kick(), 3000).unref();
