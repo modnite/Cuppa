@@ -122,9 +122,7 @@ export function Printers({ notify }: { notify: Notify }) {
                 <div className="printer-meta">
                   {[printer.makeAndModel, printer.location].filter(Boolean).join(" · ")}
                 </div>
-                <div className="small muted mono" style={{ marginTop: 4 }}>
-                  {printer.deviceUri}
-                </div>
+                <div className="printer-origin">{printer.deviceUri}</div>
                 <div className="row" style={{ marginTop: 7, gap: 8 }}>
                   <StatusPill state={printer.state} stateLabel={printer.stateLabel} offline={!printer.enabled} />
                   {printer.driver ? <span className="pill">{printer.driver}</span> : null}

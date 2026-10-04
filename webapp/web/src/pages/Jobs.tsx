@@ -101,7 +101,7 @@ export function Jobs({ notify }: { notify: Notify }) {
         />
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto" }}>
         {loading ? (
           <div className="center">
             <Spinner /> Loading jobs…
