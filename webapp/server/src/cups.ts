@@ -229,26 +229,34 @@ function resolveDriver(deviceUri: string, requested: AddPrinterInput["driver"]):
 }
 
 /** Derives the printer's IPP endpoint from a raw socket/LPD address. */
-function deriveIppUri(deviceUri: string): string | null {
+/** IPP resource paths used by different vendors. Brother often answers on
+ * `/ipp/port1` rather than the AirPrint-standard `/ipp/print`. */
+const IPP_PATHS = ["/ipp/print", "/ipp/port1", "/ipp/printer", "/ipp", "/"];
+
+/** Candidate IPP Everywhere URIs for a raw socket/LPD device. */
+function candidateIppUris(deviceUri: string): string[] {
   const match = /^(?:socket|lpd):\/\/([^/:?]+)/i.exec(deviceUri);
-  return match ? `ipp://${match[1]}:631/ipp/print` : null;
+  if (!match) return [];
+  return IPP_PATHS.map((suffix) => `ipp://${match[1]}:631${suffix}`);
 }
 
 /**
- * Checks whether a printer actually speaks IPP Everywhere at [ippUri] by asking
- * CUPS to build a driverless PPD for a throwaway queue. This is how a printer
- * that only advertises its raw port (a Brother, typically) still ends up on the
- * IPP path, where CUPS converts PDF to raster instead of sending raw bytes the
- * printer cannot read.
+ * Checks whether a printer actually speaks IPP Everywhere by asking CUPS to
+ * build a driverless PPD for a throwaway queue. Tries each candidate path and
+ * returns the first one that works, so a Brother that only answers on
+ * `/ipp/port1` still ends up on the IPP path instead of a raw queue.
  */
-async function probeIppEverywhere(ippUri: string): Promise<boolean> {
-  const probe = `cuppa_probe_${Date.now()}`;
-  try {
-    const result = await run("lpadmin", ["-p", probe, "-E", "-v", ippUri, "-m", "everywhere"], { timeoutMs: 30_000 });
-    return result.code === 0 && existsSync(`/etc/cups/ppd/${probe}.ppd`);
-  } finally {
-    await run("lpadmin", ["-x", probe]);
+async function probeIppEverywhere(candidates: string[]): Promise<string | null> {
+  for (const ippUri of candidates) {
+    const probe = `cuppa_probe_${Date.now()}`;
+    try {
+      const result = await run("lpadmin", ["-p", probe, "-E", "-v", ippUri, "-m", "everywhere"], { timeoutMs: 20_000 });
+      if (result.code === 0 && existsSync(`/etc/cups/ppd/${probe}.ppd`)) return ippUri;
+    } finally {
+      await run("lpadmin", ["-x", probe]);
+    }
   }
+  return null;
 }
 
 /** Creates a queue and records Cuppa's display metadata for it. */
@@ -267,8 +275,8 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
   // uses IPP Everywhere and converts PDFs to raster rather than passing a PDF
   // through to a printer that cannot read it.
   if (!thermalConfig && driver === "raw") {
-    const ippUri = deriveIppUri(deviceUri);
-    if (ippUri && (await probeIppEverywhere(ippUri))) {
+    const ippUri = await probeIppEverywhere(candidateIppUris(deviceUri));
+    if (ippUri) {
       log.info(`Using IPP Everywhere for ${queue} at ${ippUri} (was ${deviceUri})`);
       deviceUri = ippUri;
       driver = "everywhere";
