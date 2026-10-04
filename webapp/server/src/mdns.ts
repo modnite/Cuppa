@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ENV } from "./env.js";
@@ -151,12 +152,77 @@ function reloadAvahi(): void {
 /** Content last written per queue, so a periodic refresh does not churn Avahi. */
 const published = new Map<string, string>();
 
+/** Running `avahi-publish-service` children, keyed by "<queue>\0<type>". */
+const hostPublishers = new Map<string, { child: ChildProcess; signature: string }>();
+
+function publishArgs(printer: PrinterView, settings: CuppaSettings, type: string): string[] {
+  const args: string[] = [];
+  if (settings.airprintCompat) args.push(`--subtype=_universal._sub.${type}`);
+  args.push(printer.advertisedName, type, String(ENV.ippPort), ...txtRecords(printer, settings));
+  return args;
+}
+
+/**
+ * Publishes records through the host's Avahi over its D-Bus.
+ *
+ * Used when the host already runs an mDNS responder: running a second Avahi in
+ * the container would fight it for port 5353 and lose most multicast, so instead
+ * we ask the host's Avahi to publish these services for us.
+ */
+function syncHostAvahi(printers: PrinterView[], settings: CuppaSettings): void {
+  const desired = new Map<string, string[]>();
+  if (settings.advertiseEnabled) {
+    for (const printer of printers) {
+      if (!printer.shared) continue;
+      desired.set(`${printer.queue}\u0000_ipp._tcp`, publishArgs(printer, settings, "_ipp._tcp"));
+      if (settings.tlsEnabled) {
+        desired.set(`${printer.queue}\u0000_ipps._tcp`, publishArgs(printer, settings, "_ipps._tcp"));
+      }
+    }
+  }
+
+  let changed = false;
+  for (const [key, entry] of hostPublishers) {
+    if (!desired.has(key)) {
+      entry.child.kill("SIGTERM");
+      hostPublishers.delete(key);
+      changed = true;
+    }
+  }
+
+  for (const [key, args] of desired) {
+    const signature = args.join("\u0000");
+    const existing = hostPublishers.get(key);
+    if (existing?.signature === signature) continue;
+    if (existing) existing.child.kill("SIGTERM");
+    const child = spawn("avahi-publish-service", args, { stdio: ["ignore", "ignore", "ignore"] });
+    child.on("exit", () => {
+      if (hostPublishers.get(key)?.child === child) hostPublishers.delete(key);
+    });
+    hostPublishers.set(key, { child, signature });
+    changed = true;
+  }
+
+  if (changed) log.info(`Published ${desired.size} service(s) through the host Avahi`);
+}
+
+/** Stops any host-Avahi publishers (called on shutdown). */
+export function stopHostPublishers(): void {
+  for (const entry of hostPublishers.values()) entry.child.kill("SIGTERM");
+  hostPublishers.clear();
+}
+
 /**
  * Rewrites every Cuppa Avahi record from the current printer list. Safe to call
  * after any change and on a timer: files are only touched when their content
  * actually changed, and Avahi is only signalled when something did.
  */
 export function syncAdvertisements(printers: PrinterView[], settings: CuppaSettings): void {
+  if (ENV.avahiMode === "host") {
+    syncHostAvahi(printers, settings);
+    return;
+  }
+
   try {
     if (!existsSync(ENV.avahiServicesDir)) mkdirSync(ENV.avahiServicesDir, { recursive: true });
   } catch (error) {

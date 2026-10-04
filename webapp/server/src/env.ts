@@ -22,6 +22,13 @@ export const ENV = {
   testPage: process.env.CUPPA_TEST_PAGE ?? "/usr/share/cups/data/testprint",
   /** Optional admin password applied on first start, before the UI is used. */
   adminPassword: process.env.CUPPA_ADMIN_PASSWORD ?? "",
+  /**
+   * How mDNS is provided. "container" runs Avahi inside the image (default,
+   * works on a host that does not run its own mDNS). "host" uses the host's
+   * Avahi over its D-Bus, which is required on a host that already runs Avahi
+   * (two responders on one host fight over port 5353).
+   */
+  avahiMode: process.env.CUPPA_AVAHI_MODE ?? "container",
   /** Set to "1" to log every command and IPP exchange. */
   debug: process.env.CUPPA_DEBUG === "1",
 } as const;

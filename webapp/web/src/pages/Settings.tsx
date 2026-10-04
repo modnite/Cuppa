@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Settings as SettingsModel, Status } from "../types";
-import { Spinner, Toggle } from "../components/ui";
-import { ExternalLinkIcon, LockIcon, PrinterIcon, ShareIcon, ShieldIcon } from "../components/Icons";
+import { Segmented, Spinner, Toggle } from "../components/ui";
+import { ExternalLinkIcon, LockIcon, PrinterIcon, SettingsIcon, ShareIcon, ShieldIcon } from "../components/Icons";
+import { ACCENTS, THEME_MODES, type ThemePrefs } from "../theme";
 
 type Notify = (text: string, kind?: "info" | "success" | "error") => void;
 
@@ -17,10 +18,14 @@ export function Settings({
   status,
   notify,
   refreshStatus,
+  theme,
+  onThemeChange,
 }: {
   status: Status | null;
   notify: Notify;
   refreshStatus: () => void;
+  theme: ThemePrefs;
+  onThemeChange: (prefs: ThemePrefs) => void;
 }) {
   const [settings, setSettings] = useState<SettingsModel>(DEFAULT_SETTINGS);
   const [password, setPassword] = useState("");
@@ -88,6 +93,43 @@ export function Settings({
         <div>
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Control how Cuppa shares printers on your network.</p>
+        </div>
+      </div>
+
+      <div className="section-title">
+        <SettingsIcon size={13} /> Appearance
+      </div>
+      <div className="card">
+        <div className="setting-row">
+          <div className="setting-text">
+            <div className="setting-title">Theme</div>
+            <div className="setting-desc">Light, dark, or follow your device.</div>
+          </div>
+          <Segmented
+            value={theme.mode}
+            onChange={(mode) => onThemeChange({ ...theme, mode })}
+            options={THEME_MODES.map((m) => ({ value: m.key, label: m.label }))}
+          />
+        </div>
+        <div className="setting-row">
+          <div className="setting-text">
+            <div className="setting-title">Accent colour</div>
+            <div className="setting-desc">Used for buttons, links and highlights.</div>
+          </div>
+          <div className="swatches">
+            {ACCENTS.map((a) => (
+              <button
+                key={a.key}
+                type="button"
+                className={"swatch" + (theme.accent === a.key ? " selected" : "")}
+                style={{ background: a.swatch }}
+                title={a.label}
+                aria-label={a.label}
+                aria-pressed={theme.accent === a.key}
+                onClick={() => onThemeChange({ ...theme, accent: a.key })}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

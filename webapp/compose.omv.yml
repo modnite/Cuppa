@@ -25,12 +25,17 @@ services:
       CUPPA_IPP_PORT: ${CUPPA_IPP_PORT:-631}
       # Optional admin password, applied on first start. Leave empty for no login.
       CUPPA_ADMIN_PASSWORD: ${CUPPA_ADMIN_PASSWORD:-}
+      # auto = use the host's Avahi if it has one (OMV does), otherwise run Avahi
+      # in the container. Only one responder can own port 5353 on a host.
+      CUPPA_AVAHI_MODE: auto
 
     volumes:
       # Cuppa settings, printer names and thermal config persist here.
       - CHANGE_TO_COMPOSE_DATA_PATH/cuppa/data:/data
       # CUPS queues, PPDs and the TLS certificate persist here too.
       - CHANGE_TO_COMPOSE_DATA_PATH/cuppa/cups:/etc/cups
+      # The host's D-Bus, so Cuppa can use the host's Avahi when it has one.
+      - /run/dbus:/host-dbus
       # Uncomment to share USB printers plugged into the NAS.
       # - /dev/bus/usb:/dev/bus/usb
 

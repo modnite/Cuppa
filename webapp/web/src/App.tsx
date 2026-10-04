@@ -7,6 +7,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Jobs } from "./pages/Jobs";
 import { Printers } from "./pages/Printers";
 import { Settings } from "./pages/Settings";
+import { applyTheme, loadThemePrefs, saveThemePrefs, type ThemePrefs } from "./theme";
 import type { Page, Status } from "./types";
 import "./styles.css";
 
@@ -18,6 +19,7 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [online, setOnline] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [themePrefs, setThemePrefs] = useState<ThemePrefs>(() => loadThemePrefs());
   const toastId = useRef(0);
 
   const notify = useCallback((text: string, kind: "info" | "success" | "error" = "info") => {
@@ -68,6 +70,20 @@ export default function App() {
     return () => clearInterval(timer);
   }, [authenticated, online, refreshStatus]);
 
+  // Theme: apply and persist, and follow the OS while in "system" mode.
+  useEffect(() => {
+    applyTheme(themePrefs);
+    saveThemePrefs(themePrefs);
+  }, [themePrefs]);
+
+  useEffect(() => {
+    if (themePrefs.mode !== "system") return;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme(themePrefs);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, [themePrefs]);
+
   if (booting) {
     return (
       <div className="center" style={{ height: "100%" }}>
@@ -109,7 +125,13 @@ export default function App() {
           {page === "printers" ? <Printers notify={notify} /> : null}
           {page === "jobs" ? <Jobs notify={notify} /> : null}
           {page === "settings" ? (
-            <Settings status={status} notify={notify} refreshStatus={() => void refreshStatus()} />
+            <Settings
+              status={status}
+              notify={notify}
+              refreshStatus={() => void refreshStatus()}
+              theme={themePrefs}
+              onThemeChange={setThemePrefs}
+            />
           ) : null}
         </div>
       </main>

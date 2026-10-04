@@ -88,8 +88,14 @@ Environment variables (see `.env.example`):
 | `CUPPA_WEB_PORT` | `8631` | Web UI/API port on the host. |
 | `CUPPA_IPP_PORT` | `631` | IPP port clients print to. |
 | `CUPPA_ADMIN_PASSWORD` | *(empty)* | Optional admin password applied on first start. |
+| `CUPPA_AVAHI_MODE` | `auto` | `auto` uses the host's Avahi when the mounted D-Bus has one, otherwise runs Avahi in the container. `host`/`container` force one. |
 | `CUPPA_DATA_DIR` | `/data` | Where settings and printer names persist. |
 | `TZ` | `UTC` | Timezone for job timestamps. |
+
+The compose files mount the host's D-Bus at `/host-dbus`. Only one process can
+own mDNS port 5353 on a host, so on a NAS that already runs Avahi (OMV,
+Synology) Cuppa automatically uses it instead of starting a second responder.
+On a host without Avahi it runs its own.
 
 The admin password can also be set, changed or removed at any time in
 **Settings → Security**. Authentication is **off by default**.

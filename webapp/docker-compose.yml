@@ -24,6 +24,10 @@ services:
       # Optional: set an admin password on first start. Can also be set later
       # in the web UI under Settings → Security.
       CUPPA_ADMIN_PASSWORD: ${CUPPA_ADMIN_PASSWORD:-}
+      # auto (default) uses the host's Avahi if the mounted D-Bus has one, and
+      # otherwise runs Avahi inside the container. Force "host" or "container"
+      # only if you know better.
+      CUPPA_AVAHI_MODE: ${CUPPA_AVAHI_MODE:-auto}
 
     volumes:
       # Cuppa settings and printer names persist here.
@@ -31,6 +35,8 @@ services:
       # CUPS queues, PPDs and the TLS certificate persist here too, so printers
       # survive a container update.
       - ./data/cups:/etc/cups
+      # Lets Cuppa use the host's Avahi when the NAS runs one (OMV, Synology).
+      - /run/dbus:/host-dbus
       # Uncomment to share USB printers plugged into the NAS.
       # - /dev/bus/usb:/dev/bus/usb
 

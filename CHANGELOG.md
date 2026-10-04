@@ -3,6 +3,18 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- The webapp has light/dark/system themes and a choice of accent colours.
+- Cuppa now uses the host's Avahi when the NAS already runs one (OpenMediaVault,
+  Synology), so printer discovery and advertising work there; on a host with no
+  Avahi it still runs its own.
+
+### Fixed
+- The webapp showed only the first printer when several were configured. CUPS
+  returns one attributes group per printer and the parser read only the first.
+
 ## [0.8.0] - 2026-10-04
 
 ### Added
