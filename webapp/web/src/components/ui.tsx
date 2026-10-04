@@ -36,7 +36,13 @@ export function Modal({
       <div className="modal" style={width ? { maxWidth: width } : undefined}>
         <div className="modal-head">
           <div className="modal-title">{title}</div>
-          <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close">
+          <button
+            className="btn btn-ghost btn-icon"
+            onClick={onClose}
+            aria-label="Close"
+            data-tooltip="Close"
+            data-tooltip-pos="down"
+          >
             <XIcon />
           </button>
         </div>
@@ -64,6 +70,7 @@ export function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      data-tooltip={label}
       className={`switch${checked ? " on" : ""}`}
       onClick={() => onChange(!checked)}
       disabled={disabled}

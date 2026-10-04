@@ -134,7 +134,7 @@ export function Printers({ notify }: { notify: Notify }) {
                 </div>
               </div>
               <div className="printer-actions">
-                <div className="row" style={{ gap: 6 }} title="Share on the network">
+                <div className="row" style={{ gap: 6 }}>
                   <Toggle
                     checked={printer.shared}
                     disabled={busyQueue === printer.queue}
@@ -147,7 +147,8 @@ export function Printers({ notify }: { notify: Notify }) {
                 {!printer.isDefault ? (
                   <button
                     className="btn btn-ghost btn-icon"
-                    title="Set as default"
+                    data-tooltip="Set as default"
+                    aria-label="Set as default"
                     disabled={busyQueue === printer.queue}
                     onClick={() => void run(printer.queue, () => api.setDefault(printer.queue), "Default printer updated")}
                   >
@@ -157,7 +158,8 @@ export function Printers({ notify }: { notify: Notify }) {
                 {printer.thermal ? (
                   <button
                     className="btn btn-ghost btn-icon"
-                    title="Thermal settings"
+                    data-tooltip="Thermal settings"
+                    aria-label="Thermal settings"
                     onClick={() => setThermalTarget(printer)}
                   >
                     <SettingsIcon size={16} />
@@ -165,7 +167,8 @@ export function Printers({ notify }: { notify: Notify }) {
                 ) : null}
                 <button
                   className="btn btn-ghost btn-icon"
-                  title="Test print"
+                  data-tooltip="Test print"
+                  aria-label="Test print"
                   disabled={busyQueue === printer.queue}
                   onClick={() => void run(printer.queue, () => api.testPrint(printer.queue), "Test page sent")}
                 >
@@ -173,7 +176,8 @@ export function Printers({ notify }: { notify: Notify }) {
                 </button>
                 <button
                   className="btn btn-ghost btn-icon"
-                  title="Print a file"
+                  data-tooltip="Print a file"
+                  aria-label="Print a file"
                   disabled={busyQueue === printer.queue}
                   onClick={() => {
                     uploadTarget.current = printer;
@@ -184,7 +188,8 @@ export function Printers({ notify }: { notify: Notify }) {
                 </button>
                 <button
                   className="btn btn-ghost btn-icon"
-                  title={printer.enabled ? "Pause printer" : "Resume printer"}
+                  data-tooltip={printer.enabled ? "Pause printer" : "Resume printer"}
+                  aria-label={printer.enabled ? "Pause printer" : "Resume printer"}
                   disabled={busyQueue === printer.queue}
                   onClick={() =>
                     void run(
@@ -196,10 +201,10 @@ export function Printers({ notify }: { notify: Notify }) {
                 >
                   <PowerIcon size={16} />
                 </button>
-                <button className="btn btn-ghost btn-icon" title="Rename" onClick={() => setRenaming(printer)}>
+                <button className="btn btn-ghost btn-icon" data-tooltip="Rename" aria-label="Rename" onClick={() => setRenaming(printer)}>
                   <PencilIcon size={16} />
                 </button>
-                <button className="btn btn-ghost btn-icon" title="Remove" onClick={() => setRemoving(printer)}>
+                <button className="btn btn-ghost btn-icon" data-tooltip="Remove" aria-label="Remove" onClick={() => setRemoving(printer)}>
                   <TrashIcon size={16} />
                 </button>
               </div>

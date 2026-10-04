@@ -123,7 +123,7 @@ export function Settings({
                 type="button"
                 className={"swatch" + (theme.accent === a.key ? " selected" : "")}
                 style={{ background: a.swatch }}
-                title={a.label}
+                data-tooltip={a.label}
                 aria-label={a.label}
                 aria-pressed={theme.accent === a.key}
                 onClick={() => onThemeChange({ ...theme, accent: a.key })}

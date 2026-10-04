@@ -958,6 +958,49 @@ a:hover {
   font-weight: 550;
 }
 
+/* ------------------------------------------------------------------ Tooltips */
+
+/* Hover/focus tooltips for icon-only controls. Uses ::before so it never
+   collides with components that use ::after (the switch knob). */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) scale(0.96);
+  transform-origin: bottom center;
+  background: rgba(28, 28, 30, 0.96);
+  color: #fff;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 90;
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  transition-delay: 280ms;
+}
+
+[data-tooltip][data-tooltip-pos="down"]::before {
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform-origin: top center;
+}
+
 .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
 .swatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--border-strong); cursor: pointer; }
 .swatch.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--accent); }
