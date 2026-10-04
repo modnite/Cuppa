@@ -338,14 +338,28 @@ export function groupRecords(group: IppGroup | undefined, key: string): IppRecor
   if (!group) return [];
   const records: IppRecord[] = [];
   let current: IppRecord | null = null;
+  let pending: Array<[string, IppValue]> = [];
 
   for (const attribute of group.attributes) {
     if (attribute.name === key) {
-      current = { [key]: [attribute.value] };
-      records.push(current);
+      if (current === null) {
+        // CUPS does not guarantee the identifying attribute comes first (for
+        // jobs it sits in the middle), so attributes seen before it belong to
+        // the first record.
+        current = { [key]: [attribute.value] };
+        for (const [name, value] of pending) (current[name] ??= []).push(value);
+        pending = [];
+        records.push(current);
+      } else {
+        current = { [key]: [attribute.value] };
+        records.push(current);
+      }
       continue;
     }
-    if (!current) continue;
+    if (!current) {
+      pending.push([attribute.name, attribute.value]);
+      continue;
+    }
     (current[attribute.name] ??= []).push(attribute.value);
   }
   return records;
