@@ -45,6 +45,10 @@ same compose file into the "Project" / "Compose" editor instead.
 > Docker's default bridge network hides it. The compose file sets
 > `network_mode: host`, which also lets CUPS see printers on the LAN.
 
+> **Package visibility.** GHCR packages are private by default. Either set the
+> `cuppa-web` package to Public (Package settings → Change visibility), or log the
+> NAS in first: `echo <PAT-with-read:packages> | docker login ghcr.io -u <owner> --password-stdin`.
+
 ## Sharing a printer
 
 1. **Printers → Add printer**.
