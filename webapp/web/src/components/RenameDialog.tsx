@@ -84,6 +84,8 @@ export function RenameDialog({
       <div className="card pad" style={{ background: "var(--card-bg-2)" }}>
         <div className="small muted">Current queue name</div>
         <div className="mono">{printer.queue}</div>
+        <div className="small muted mt">Source</div>
+        <div className="mono">{printer.deviceUri}</div>
         <div className="small muted mt">Internal CUPS queue stays the same, so existing jobs and settings are preserved.</div>
       </div>
     </Modal>

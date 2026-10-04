@@ -172,6 +172,15 @@ export async function listPrinters(): Promise<PrinterView[]> {
     const displayName = meta?.displayName?.trim() || stripCuppaSuffix(info) || queue;
     const state = recordNumber(record, "printer-state", 3);
     const shared = meta?.shared ?? recordBoolean(record, "printer-is-shared", true);
+    const deviceUri = recordString(record, "device-uri");
+    const thermal = loadThermalConfig(queue);
+    const driver = thermal
+      ? `Thermal (${thermal.dialect.toUpperCase()})`
+      : /^(ipp|ipps|dnssd):/i.test(deviceUri)
+        ? "IPP Everywhere"
+        : deviceUri.startsWith("usb:")
+          ? "USB (raw)"
+          : "Raw";
 
     printers.push({
       queue,
@@ -189,9 +198,10 @@ export async function listPrinters(): Promise<PrinterView[]> {
       color: recordBoolean(record, "color-supported"),
       formats: recordStrings(record, "document-format-supported"),
       uri: `ipp://${ip}:${ENV.ippPort}/printers/${queue}`,
-      deviceUri: recordString(record, "device-uri"),
+      deviceUri,
       uuid: recordString(record, "printer-uuid") || `urn:uuid:${deterministicUuid(queue)}`,
-      thermal: loadThermalConfig(queue),
+      driver,
+      thermal,
     });
   }
 
@@ -241,7 +251,15 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
   } else {
     args.push("-m", driver);
   }
-  args.push("-D", advertisedName(displayName), "-o", `printer-is-shared=${shared}`);
+  args.push(
+    "-D",
+    advertisedName(displayName),
+    "-o",
+    `printer-is-shared=${shared}`,
+    // Stop the queue on the first error instead of retrying a bad job forever.
+    "-o",
+    "printer-error-policy=stop-printer"
+  );
   if (location) args.push("-L", location);
 
   try {
@@ -257,6 +275,22 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
   }
 
   if (thermalConfig) saveThermalConfig(queue, thermalConfig);
+
+  // A driverless queue that CUPS could not build a PPD for accepts jobs but
+  // prints nothing. Fail loudly instead of leaving a broken queue behind.
+  if (!thermalConfig && driver === "everywhere") {
+    const ppdPath = `/etc/cups/ppd/${queue}.ppd`;
+    if (!existsSync(ppdPath)) {
+      await run("lpadmin", ["-x", queue]);
+      throw new Error(
+        "Could not build a driverless PPD for this printer. Make sure it is reachable and supports IPP/AirPrint, then add it by its IPP address (not its socket/raw address)."
+      );
+    }
+  }
+  if (!thermalConfig && driver === "raw") {
+    log.warn(`Queue ${queue} is raw: documents will be passed through unchanged and may not print`);
+  }
+
   store.setMeta(queue, { displayName, location, shared, createdAt: Date.now() });
   log.info(
     `Added printer ${queue} (${displayName}) -> ${deviceUri} [${thermalConfig ? `thermal:${thermalConfig.dialect}` : driver}]`

@@ -45,6 +45,8 @@ export interface PrinterView {
   uri: string;
   deviceUri: string;
   uuid: string;
+  /** The driver CUPS is using for this queue (IPP Everywhere, Raw, or a thermal dialect). */
+  driver: string;
   /** Present when this queue is a thermal label printer. */
   thermal: ThermalConfig | null;
 }

@@ -120,10 +120,14 @@ export function Printers({ notify }: { notify: Notify }) {
                   {printer.isDefault ? <span className="pill accent">Default</span> : null}
                 </div>
                 <div className="printer-meta">
-                  {[printer.makeAndModel, printer.location].filter(Boolean).join(" · ") || printer.deviceUri}
+                  {[printer.makeAndModel, printer.location].filter(Boolean).join(" · ")}
+                </div>
+                <div className="small muted mono" style={{ marginTop: 4 }}>
+                  {printer.deviceUri}
                 </div>
                 <div className="row" style={{ marginTop: 7, gap: 8 }}>
                   <StatusPill state={printer.state} stateLabel={printer.stateLabel} offline={!printer.enabled} />
+                  {printer.driver ? <span className="pill">{printer.driver}</span> : null}
                   {printer.color ? <span className="pill">Color</span> : null}
                   {!printer.accepting ? <span className="pill warn">Not accepting jobs</span> : null}
                   <CopyButton value={printer.uri} />
@@ -207,7 +211,7 @@ export function Printers({ notify }: { notify: Notify }) {
       <input ref={fileInput} type="file" hidden onChange={onPickFile} />
 
       {showAdd ? (
-        <AddPrinterDialog onClose={() => setShowAdd(false)} onAdded={() => void load()} notify={notify} />
+        <AddPrinterDialog existing={printers} onClose={() => setShowAdd(false)} onAdded={() => void load()} notify={notify} />
       ) : null}
 
       {thermalTarget ? (

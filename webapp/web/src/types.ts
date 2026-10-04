@@ -48,6 +48,7 @@ export interface Printer {
   formats: string[];
   uri: string;
   deviceUri: string;
+  driver: string;
   uuid: string;
   thermal: ThermalConfig | null;
 }

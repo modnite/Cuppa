@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
-import type { Device, ThermalConfig } from "../types";
+import type { Device, Printer, ThermalConfig } from "../types";
 import { InfoIcon, PlusIcon, PrinterIcon, RefreshIcon, SearchIcon, UsbIcon, WifiIcon } from "./Icons";
 import { Modal, Segmented, Spinner, Toggle } from "./ui";
 
@@ -29,11 +29,21 @@ function deviceIcon(uri: string) {
   return <WifiIcon size={18} />;
 }
 
+function recommendedDriver(uri: string): string {
+  if (uri.startsWith("ipp://") || uri.startsWith("ipps://") || uri.startsWith("dnssd://")) {
+    return "IPP Everywhere";
+  }
+  if (uri.startsWith("usb://")) return "USB (raw)";
+  return "Raw (no conversion)";
+}
+
 export function AddPrinterDialog({
+  existing,
   onClose,
   onAdded,
   notify,
 }: {
+  existing: Printer[];
   onClose: () => void;
   onAdded: () => void;
   notify: (text: string, kind?: "info" | "success" | "error") => void;
@@ -174,18 +184,23 @@ export function AddPrinterDialog({
           ) : (
             devices.map((device) => {
               const isSelected = selected?.uri === device.uri;
+              const added = existing.some((p) => p.deviceUri === device.uri);
+              const recommended = recommendedDriver(device.uri);
               return (
                 <button
                   key={device.uri}
                   className="device-row"
+                  disabled={added}
                   style={{
                     width: "100%",
                     textAlign: "left",
-                    cursor: "pointer",
+                    cursor: added ? "default" : "pointer",
+                    opacity: added ? 0.6 : undefined,
                     borderColor: isSelected ? "var(--accent)" : undefined,
                     boxShadow: isSelected ? "0 0 0 3px var(--accent-soft)" : undefined,
                   }}
                   onClick={() => {
+                    if (added) return;
                     setSelected(device);
                     setName(guessName(device));
                     setDriver("auto");
@@ -198,8 +213,23 @@ export function AddPrinterDialog({
                   <span className="device-info">
                     <span className="device-name">{device.makeAndModel || device.info || device.uri}</span>
                     <span className="device-uri">{device.uri}</span>
+                    <span className="small muted" style={{ display: "block" }}>
+                      Recommended driver: {recommended}
+                    </span>
+                    {recommended === "Raw (no conversion)" ? (
+                      <span className="small" style={{ display: "block", color: "var(--warning)" }}>
+                        Raw queues pass the file through unchanged — pick the printer's IPP/AirPrint entry
+                        if it has one, or documents may not print.
+                      </span>
+                    ) : null}
                   </span>
-                  {isSelected ? <span className="pill accent">Selected</span> : <PlusIcon size={16} />}
+                  {added ? (
+                    <span className="pill ok">Added</span>
+                  ) : isSelected ? (
+                    <span className="pill accent">Selected</span>
+                  ) : (
+                    <PlusIcon size={16} />
+                  )}
                 </button>
               );
             })
