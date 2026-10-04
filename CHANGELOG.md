@@ -3,7 +3,7 @@
 Notable changes to Cuppa, newest first. Loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.8.0] - 2026-10-04
 
 ### Added
 - A web version of Cuppa for running on a NAS, packaged as a Docker image. It runs real CUPS and
@@ -15,6 +15,10 @@ Notable changes to Cuppa, newest first. Loosely follows
   Android app (TSPL/Rollo X1038, ZPL, EPL2, ESC/POS, PCL). A generated PPD routes each queue's
   PDF jobs through a `cuppa-thermal` CUPS filter, so macOS, iOS and Android can print to a thermal
   printer shared by Cuppa without knowing anything about its command language.
+- Thermal settings are per printer on Android now, matching the webapp. Each USB thermal printer
+  can override the global defaults (dialect, label size, density, speed, gap, dithering, polarity)
+  from its card in the Printers screen. A printer without an override keeps the global settings and
+  the automatic dialect detection.
 
 ## [0.7.6] - 2026-09-20
 
