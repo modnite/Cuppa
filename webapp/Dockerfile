@@ -44,6 +44,7 @@ RUN apt-get update \
         usbutils \
         ghostscript \
         poppler-utils \
+        printer-driver-brlaser \
         supervisor \
         tini \
         ca-certificates \

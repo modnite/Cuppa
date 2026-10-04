@@ -67,6 +67,8 @@ export interface JobView {
   user: string;
   state: number;
   stateLabel: string;
+  /** CUPS `job-state-reasons` (e.g. `job-completed-with-errors`). */
+  stateReasons: string[];
   sizeBytes: number;
   createdAt: number;
   completedAt: number | null;

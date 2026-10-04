@@ -5,7 +5,7 @@ import { InfoIcon, PlusIcon, PrinterIcon, RefreshIcon, SearchIcon, UsbIcon, Wifi
 import { Modal, Segmented, Spinner, Toggle } from "./ui";
 
 type Tab = "discovered" | "manual";
-type Driver = "auto" | "everywhere" | "raw";
+type Driver = string;
 type LabelSize = "4x6" | "4x4";
 
 const LABEL_SIZES: Record<LabelSize, { labelWidthMm: number; labelHeightMm: number }> = {
@@ -59,6 +59,12 @@ export function AddPrinterDialog({
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [driver, setDriver] = useState<Driver>("auto");
+  const [pickMode, setPickMode] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<{ id: string; name: string } | null>(null);
+  const [models, setModels] = useState<Array<{ id: string; name: string }>>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [modelFilter, setModelFilter] = useState("");
 
   const [thermal, setThermal] = useState(false);
   const [labelSize, setLabelSize] = useState<LabelSize>("4x6");
@@ -83,6 +89,27 @@ export function AddPrinterDialog({
     void scan();
   }, []);
 
+  const loadModels = async () => {
+    if (modelsLoaded || modelsLoading) return;
+    setModelsLoading(true);
+    try {
+      setModels(await api.drivers());
+      setModelsLoaded(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not load drivers");
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
+  const filteredModels = useMemo(() => {
+    const query = modelFilter.trim().toLowerCase();
+    const list = query
+      ? models.filter((model) => model.name.toLowerCase().includes(query) || model.id.toLowerCase().includes(query))
+      : models;
+    return list.slice(0, 50);
+  }, [models, modelFilter]);
+
   const activeUri = tab === "manual" ? manualUri.trim() : selected?.uri ?? "";
   const activeName = tab === "manual" ? name : name || (selected ? guessName(selected) : "");
 
@@ -98,7 +125,8 @@ export function AddPrinterDialog({
         deviceUri: activeUri,
         displayName: activeName.trim() || "Cuppa Printer",
         location: location.trim(),
-        driver,
+        driver: pickMode ? selectedModel?.id ?? "auto" : driver,
+        makeAndModel: tab === "discovered" ? selected?.makeAndModel : undefined,
         shared: true,
         thermal: thermal
           ? {
@@ -149,6 +177,8 @@ export function AddPrinterDialog({
           onChange={(value) => {
             setTab(value);
             setSelected(null);
+            setPickMode(false);
+            setSelectedModel(null);
             setError("");
           }}
           options={[
@@ -204,6 +234,8 @@ export function AddPrinterDialog({
                     setSelected(device);
                     setName(guessName(device));
                     setDriver("auto");
+                    setPickMode(false);
+                    setSelectedModel(null);
                     setError("");
                   }}
                 >
@@ -219,7 +251,8 @@ export function AddPrinterDialog({
                     {recommended === "Raw (no conversion)" ? (
                       <span className="small" style={{ display: "block", color: "var(--warning)" }}>
                         Raw queues pass the file through unchanged — pick the printer's IPP/AirPrint entry
-                        if it has one, or documents may not print.
+                        if it has one, or documents may not print. Monochrome Brother laser? Choose{" "}
+                        <strong>Specific driver…</strong> and pick a brlaser/Brother entry.
                       </span>
                     ) : null}
                   </span>
@@ -279,13 +312,72 @@ export function AddPrinterDialog({
             </div>
             <div className="field">
               <label>Driver</label>
-              <select className="select" value={driver} onChange={(event) => setDriver(event.target.value as Driver)}>
+              <select
+                className="select"
+                value={pickMode ? "__pick__" : driver}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === "__pick__") {
+                    setPickMode(true);
+                    void loadModels();
+                  } else {
+                    setPickMode(false);
+                    setSelectedModel(null);
+                    setDriver(value);
+                  }
+                }}
+              >
                 <option value="auto">Automatic (recommended)</option>
                 <option value="everywhere">IPP Everywhere / AirPrint</option>
                 <option value="raw">Raw (pass-through)</option>
+                <option value="__pick__">Specific driver…</option>
               </select>
             </div>
           </div>
+          {pickMode ? (
+            <div className="field mt">
+              <label>Specific driver</label>
+              <input
+                className="input"
+                placeholder="Filter drivers, e.g. Brother or brlaser"
+                value={modelFilter}
+                onChange={(event) => setModelFilter(event.target.value)}
+              />
+              {modelsLoading ? (
+                <span className="hint">Loading available drivers…</span>
+              ) : (
+                <select
+                  className="select"
+                  size={Math.min(6, Math.max(2, filteredModels.length || 2))}
+                  value={selectedModel?.id ?? ""}
+                  onChange={(event) => {
+                    const model = models.find((entry) => entry.id === event.target.value);
+                    if (model) {
+                      setSelectedModel(model);
+                      setDriver(model.id);
+                    }
+                  }}
+                >
+                  {filteredModels.length === 0 ? <option value="">No matching drivers</option> : null}
+                  {filteredModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedModel ? (
+                <span className="hint">
+                  Selected: <strong>{selectedModel.name}</strong>
+                </span>
+              ) : (
+                <span className="hint">
+                  Pick the driver that matches your printer. For monochrome Brother lasers, look for a
+                  brlaser/Brother entry.
+                </span>
+              )}
+            </div>
+          ) : null}
           <div className="row small muted">
             <InfoIcon size={14} />
             <span>

@@ -114,8 +114,9 @@ export function registerRoutes(app: FastifyInstance): void {
       deviceUri?: string;
       displayName?: string;
       location?: string;
-      driver?: "auto" | "everywhere" | "raw";
+      driver?: string;
       shared?: boolean;
+      makeAndModel?: string;
       thermal?: Partial<ThermalConfig> | null;
     };
     try {
@@ -125,6 +126,7 @@ export function registerRoutes(app: FastifyInstance): void {
         location: body.location,
         driver: body.driver ?? "auto",
         shared: body.shared ?? true,
+        makeAndModel: body.makeAndModel,
         thermal: body.thermal ?? null,
       });
       await refreshAdvertisements();

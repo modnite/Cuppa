@@ -55,7 +55,8 @@ export const api = {
     deviceUri: string;
     displayName: string;
     location?: string;
-    driver?: "auto" | "everywhere" | "raw";
+    driver?: string;
+    makeAndModel?: string;
     shared?: boolean;
     thermal?: Partial<ThermalConfig> | null;
   }) => request<{ ok: boolean; queue: string }>("/api/printers", { method: "POST", body: JSON.stringify(input) }),
@@ -95,6 +96,8 @@ export const api = {
   },
 
   discover: () => request<{ devices: Device[] }>("/api/discover").then((r) => r.devices),
+
+  drivers: () => request<{ drivers: Array<{ id: string; name: string }> }>("/api/drivers").then((r) => r.drivers),
 
   jobs: (scope: "active" | "history" | "all") =>
     request<{ jobs: Job[] }>(`/api/jobs?scope=${scope}`).then((r) => r.jobs),

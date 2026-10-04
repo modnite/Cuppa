@@ -214,8 +214,10 @@ export interface AddPrinterInput {
   deviceUri: string;
   displayName: string;
   location?: string;
-  driver?: "auto" | "everywhere" | "raw";
+  driver?: string;
   shared?: boolean;
+  /** The printer's make and model, when known from discovery (used to pick a driver). */
+  makeAndModel?: string;
   /** When set, the queue is created as a thermal label printer. */
   thermal?: Partial<ThermalConfig> | null;
 }
@@ -269,6 +271,16 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
       log.info(`Using IPP Everywhere for ${queue} at ${ippUri} (was ${deviceUri})`);
       deviceUri = ippUri;
       driver = "everywhere";
+    }
+  }
+
+  // A monochrome Brother laser that only exposes its raw port needs the brlaser
+  // driver; otherwise a PDF is passed through and the printer ejects blank pages.
+  if (!thermalConfig && driver === "raw" && /brother/i.test(input.makeAndModel ?? "")) {
+    const brlaser = (await listDrivers()).find((candidate) => /brlaser/i.test(candidate.id));
+    if (brlaser) {
+      log.info(`Using ${brlaser.id} for ${queue} (Brother)`);
+      driver = brlaser.id;
     }
   }
 
@@ -394,7 +406,8 @@ export async function setAccepting(queue: string, accepting: boolean): Promise<v
 
 /** Sends a file to a queue through CUPS' own `lp` client. */
 export async function printFile(queue: string, filePath: string, title: string): Promise<void> {
-  await runOrThrow("lp", ["-d", queue, "-t", title, filePath], { timeoutMs: 60_000 });
+  const output = await runOrThrow("lp", ["-d", queue, "-t", title, filePath], { timeoutMs: 60_000 });
+  log.info(`Submitted "${title}" to ${queue}: ${output.trim()}`);
 }
 
 /** Prints CUPS' standard test page, falling back to a generated text page. */
@@ -406,7 +419,8 @@ export async function testPrint(queue: string): Promise<void> {
     const file = path.join(os.tmpdir(), `cuppa-thermal-test-${Date.now()}.tspl`);
     writeFileSync(file, generateThermalTestLabel(thermalConfig, queue));
     try {
-      await runOrThrow("lp", ["-d", queue, "-o", "raw", "-t", "Cuppa Thermal Test", file], { timeoutMs: 60_000 });
+      const output = await runOrThrow("lp", ["-d", queue, "-o", "raw", "-t", "Cuppa Thermal Test", file], { timeoutMs: 60_000 });
+      log.info(`Submitted thermal test label to ${queue}: ${output.trim()}`);
     } finally {
       try {
         unlinkSync(file);
@@ -452,16 +466,20 @@ export async function testPrint(queue: string): Promise<void> {
 /** Active or completed jobs across every queue. */
 export async function listJobs(scope: "active" | "history" | "all"): Promise<JobView[]> {
   const which = scope === "active" ? "not-completed" : scope === "history" ? "completed" : "all";
-  const response = await ippRequest(IPP_OP.CUPS_GET_JOBS, [
+  const response = await ippRequest(IPP_OP.GET_JOBS, [
     opGroup([
       ...commonAttributes(),
+      // Get-Jobs requires the server URI and a user name. (CUPS-Get-Jobs is a
+      // different operation and returns 400 here, which is why the Jobs page
+      // was always empty.)
+      { tag: IPP_TAG.uri, name: "printer-uri", value: `ipp://${ENV.cupsHost}:${ENV.ippPort}/` },
+      { tag: IPP_TAG.nameWithoutLanguage, name: "requesting-user-name", value: "root" },
       { tag: IPP_TAG.keyword, name: "which-jobs", value: which },
-      { tag: IPP_TAG.boolean, name: "my-jobs", value: false },
       ...multi(IPP_TAG.keyword, "requested-attributes", JOB_ATTRIBUTES),
     ]),
   ]);
 
-  if (response.statusCode !== 0) logIppFailure("CUPS-Get-Jobs", response);
+  if (response.statusCode !== 0) logIppFailure("Get-Jobs", response);
 
   const jobGroupRecords = response.groups
     .filter((group) => group.tag === IPP_TAG.jobAttributes)
@@ -483,6 +501,7 @@ export async function listJobs(scope: "active" | "history" | "all"): Promise<Job
       user: recordString(record, "job-originating-user-name"),
       state,
       stateLabel: jobStateLabel(state),
+      stateReasons: recordStrings(record, "job-state-reasons").filter((reason) => reason !== "none"),
       sizeBytes: recordNumber(record, "job-k-octets") * 1024,
       createdAt: recordNumber(record, "time-at-creation") * 1000,
       completedAt: completedAt > 0 ? completedAt * 1000 : null,

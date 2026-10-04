@@ -136,6 +136,9 @@ export function Jobs({ notify }: { notify: Notify }) {
                   <td className="muted">{job.user || "—"}</td>
                   <td>
                     <span className={`pill ${jobPill(job)}`}>{job.stateLabel}</span>
+                    {job.stateReasons.length > 0 ? (
+                      <div className="muted small">{job.stateReasons.join(", ")}</div>
+                    ) : null}
                   </td>
                   <td className="right muted">{formatBytes(job.sizeBytes)}</td>
                   <td className="muted small">{formatTime(job.createdAt)}</td>

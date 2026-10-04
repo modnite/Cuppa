@@ -125,6 +125,16 @@ compose file already passes through `/dev/bus/usb`, so CUPS sees them:
 On some NAS firmware USB still needs `privileged: true` (commented in the
 compose file).
 
+### Brother laser printers
+
+Monochrome Brother lasers (e.g. the MFC-L2717DW) frequently expose only their
+raw port and cannot interpret a PDF. Sending one straight to the printer shows
+up as **endless blank pages**. Cuppa bundles the open-source
+[`brlaser`](https://github.com/pdewacht/brlaser) driver and selects it
+automatically when a discovered Brother falls back to a raw queue. When adding
+one by hand, choose **Driver → Specific driver…** and pick a brlaser/Brother
+entry.
+
 ## Thermal label printers
 
 Cuppa carries the same thermal command engines as the Android app, so a label

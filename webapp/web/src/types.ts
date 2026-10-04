@@ -67,6 +67,7 @@ export interface Job {
   user: string;
   state: number;
   stateLabel: string;
+  stateReasons: string[];
   sizeBytes: number;
   createdAt: number;
   completedAt: number | null;
