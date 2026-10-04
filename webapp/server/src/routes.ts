@@ -9,6 +9,7 @@ import { auth, clearSessionCookie, requireAuth, setSessionCookie, sessionToken }
 import {
   addPrinter,
   cancelJob,
+  collectDiagnostics,
   discoverDevices,
   listDrivers,
   listJobs,
@@ -240,6 +241,7 @@ export function registerRoutes(app: FastifyInstance): void {
   // ---- Discovery & drivers ----
   app.get("/api/discover", async () => ({ devices: await discoverDevices() }));
   app.get("/api/drivers", async () => ({ drivers: await listDrivers() }));
+  app.get("/api/diagnostics", async () => collectDiagnostics());
 
   // ---- Jobs ----
   app.get("/api/jobs", async (request) => {

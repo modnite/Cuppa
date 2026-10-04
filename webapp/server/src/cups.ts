@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -631,6 +631,30 @@ export async function listDrivers(): Promise<DriverView[]> {
     drivers.push({ id: match[1]!, name: match[2]! });
   }
   return drivers;
+}
+
+/** Best-effort snapshot of CUPS and the backends, for troubleshooting. */
+export async function collectDiagnostics(): Promise<Record<string, string>> {
+  const text = async (command: string, args: string[]): Promise<string> => {
+    const result = await run(command, args, { timeoutMs: 15_000 });
+    return (result.stdout || result.stderr || `(exit ${result.code})`).trim();
+  };
+  const errorLog = (() => {
+    try {
+      return readFileSync("/var/log/cups/error_log", "utf8").split(/\r?\n/).slice(-200).join("\n");
+    } catch {
+      return "(no /var/log/cups/error_log)";
+    }
+  })();
+  const [devices, queues, printers, jobs, backends, thermal] = await Promise.all([
+    text("lpinfo", ["-v"]),
+    text("lpstat", ["-v"]),
+    text("lpstat", ["-p", "-d"]),
+    text("lpstat", ["-W", "all", "-o"]),
+    text("ls", ["-l", "/usr/lib/cups/backend"]),
+    Promise.resolve(listThermalQueues().join("\n")),
+  ]);
+  return { devices, queues, printers, jobs, backends, thermal, errorLog };
 }
 
 export function localQueueName(displayName: string): string {
