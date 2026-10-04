@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Print
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PrintDisabled
 import androidx.compose.material.icons.outlined.Usb
 import androidx.compose.material.icons.outlined.Wifi
@@ -40,6 +41,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -90,6 +93,7 @@ fun PrintersScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var testPrintPrinter by remember { mutableStateOf<PrinterInfo?>(null) }
+    var renamePrinter by remember { mutableStateOf<PrinterInfo?>(null) }
 
     // Show snackbar for operation results
     LaunchedEffect(uiState.operationResult) {
@@ -172,6 +176,7 @@ fun PrintersScreen(
                     onRemovePrinter = { viewModel.removePrinter(it) },
                     onAddPrinter = { viewModel.addPrinter(it) },
                     onTestPrint = { testPrintPrinter = it },
+                    onRenamePrinter = { renamePrinter = it },
                 )
             }
         }
@@ -196,6 +201,18 @@ fun PrintersScreen(
             TestPrintSheet(
                 printer = printer,
                 onDismiss = { testPrintPrinter = null }
+            )
+        }
+
+        // Rename dialog
+        renamePrinter?.let { printer ->
+            RenamePrinterDialog(
+                printer = printer,
+                onDismiss = { renamePrinter = null },
+                onConfirm = { newName ->
+                    viewModel.renamePrinter(printer.uri, newName)
+                    renamePrinter = null
+                },
             )
         }
     
@@ -224,6 +241,7 @@ private fun PrintersContent(
     onRemovePrinter: (String) -> Unit,
     onAddPrinter: (DiscoveredPrinter) -> Unit,
     onTestPrint: (PrinterInfo) -> Unit,
+    onRenamePrinter: (PrinterInfo) -> Unit,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth >= 840.dp) {
@@ -241,6 +259,7 @@ private fun PrintersContent(
                         onRemovePrinter = onRemovePrinter,
                         onAddPrinter = onAddPrinter,
                         onTestPrint = onTestPrint,
+                        onRenamePrinter = onRenamePrinter,
                     )
                 }
             }
@@ -257,6 +276,7 @@ private fun PrintersContent(
                 onRemovePrinter = onRemovePrinter,
                 onAddPrinter = onAddPrinter,
                 onTestPrint = onTestPrint,
+                onRenamePrinter = onRenamePrinter,
             )
         }
     }
@@ -275,6 +295,7 @@ private fun PrintersList(
     onRemovePrinter: (String) -> Unit,
     onAddPrinter: (DiscoveredPrinter) -> Unit,
     onTestPrint: (PrinterInfo) -> Unit,
+    onRenamePrinter: (PrinterInfo) -> Unit,
 ) {
     var showDiscovered by rememberSaveable { mutableStateOf(true) }
     val discoveredCount = discoveredUsbPrinters.size + discoveredNetworkPrinters.size
@@ -349,6 +370,7 @@ private fun PrintersList(
                     activePort = activePort,
                     onRemove = { onRemovePrinter(printer.uri) },
                     onTestPrint = { onTestPrint(printer) },
+                    onRename = { onRenamePrinter(printer) },
                 )
             }
         }
@@ -420,6 +442,7 @@ private fun AddedPrinterCard(
     activePort: Int,
     onRemove: () -> Unit,
     onTestPrint: () -> Unit,
+    onRename: () -> Unit,
 ) {
     // Set by the reachability check that decides what Cuppa advertises to the network. It only
     // runs while the server is on, and is empty until the first check finishes.
@@ -562,6 +585,16 @@ private fun AddedPrinterCard(
                 )
             }
 
+            // Rename button. The name shown here is the one broadcast on the network with
+            // " (Cuppa)" appended, so this is where a custom name is set.
+            IconButton(onClick = onRename) {
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = "Rename printer",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             // Remove button. Asks first: one stray tap used to delete a printer outright.
             var confirmRemove by remember { mutableStateOf(false) }
             IconButton(onClick = { confirmRemove = true }) {
@@ -586,6 +619,51 @@ private fun AddedPrinterCard(
             }
         }
     }
+}
+
+/**
+ * Dialog for renaming a managed printer. The typed name is what other devices see, with
+ * " (Cuppa)" appended automatically.
+ */
+@Composable
+private fun RenamePrinterDialog(
+    printer: PrinterInfo,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember(printer.uri) { mutableStateOf(printer.name) }
+    val preview = "${name.trim().ifBlank { "Cuppa Printer" }} (Cuppa)"
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename printer") },
+        text = {
+            Column {
+                Text(
+                    text = "Other devices will see it as “$preview”.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Printer name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name.trim()) },
+                enabled = name.isNotBlank(),
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 /**

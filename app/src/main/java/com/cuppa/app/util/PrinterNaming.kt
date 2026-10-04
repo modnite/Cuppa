@@ -43,4 +43,17 @@ object PrinterNaming {
         } while (n != previous)
         return n.lowercase()
     }
+
+    /**
+     * Picks a name that no other managed printer already uses, appending " (2)", " (3)" and so
+     * on as needed. Comparison is case-insensitive, matching how the native queue registry and
+     * the mDNS service names are compared.
+     */
+    fun uniqueName(base: String, existingNames: Collection<String>): String {
+        val taken = existingNames.map { it.lowercase() }.toSet()
+        if (base.lowercase() !in taken) return base
+        var index = 2
+        while ("$base ($index)".lowercase() in taken) index += 1
+        return "$base ($index)"
+    }
 }

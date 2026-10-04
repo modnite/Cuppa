@@ -9,6 +9,7 @@ import com.cuppa.app.discovery.DiscoveredPrinter
 import com.cuppa.app.discovery.NetworkPrinterDiscovery
 import com.cuppa.app.discovery.PrinterTransport
 import com.cuppa.app.discovery.UsbPrinterDiscovery
+import com.cuppa.app.util.PrinterNaming
 import com.cuppa.cups.PrinterInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -340,6 +341,31 @@ class PrintersViewModel(application: Application) : AndroidViewModel(application
         repository.savePrinters(getApplication())
         _operationResult.value = "Printer removed"
         Log.i(TAG, "Removed printer: $uri")
+    }
+
+    /**
+     * Rename a managed printer. The name becomes the mDNS service name with " (Cuppa)" appended,
+     * and the IPP queue path. A clash with another managed printer is resolved by suffixing.
+     */
+    fun renamePrinter(uri: String, requestedName: String) {
+        val clean = requestedName.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch {
+            val others = repository.printers.value.filter { it.uri != uri }.map { it.name }
+            val finalName = PrinterNaming.uniqueName(clean, others)
+            val renamed = repository.renamePrinter(uri, finalName)
+            if (renamed) {
+                repository.savePrinters(getApplication())
+                _operationResult.value = if (finalName == clean) {
+                    "✓ Renamed to $finalName"
+                } else {
+                    "✓ Renamed to $finalName (that name was already in use)"
+                }
+                Log.i(TAG, "Renamed printer $uri to $finalName")
+            } else {
+                _operationResult.value = "✗ Could not rename printer"
+            }
+        }
     }
 
     /**

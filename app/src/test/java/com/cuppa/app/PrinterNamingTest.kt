@@ -29,4 +29,15 @@ class PrinterNamingTest {
         assertEquals("brother mfc-l2717dw", PrinterNaming.comparableName("Brother MFC-L2717DW (Cuppa) (2)"))
         assertEquals("usb printer (0x09c5:0x0588)", PrinterNaming.comparableName("USB Printer (0x09C5:0x0588) (Cuppa) (2) (Cuppa)"))
     }
+
+    @Test
+    fun uniqueName_appendsSuffixOnlyOnClash() {
+        assertEquals("Office Laser", PrinterNaming.uniqueName("Office Laser", emptyList()))
+        assertEquals("Office Laser", PrinterNaming.uniqueName("Office Laser", listOf("Front Desk")))
+        assertEquals("Office Laser (2)", PrinterNaming.uniqueName("Office Laser", listOf("office laser")))
+        assertEquals(
+            "Office Laser (3)",
+            PrinterNaming.uniqueName("Office Laser", listOf("Office Laser", "Office Laser (2)"))
+        )
+    }
 }

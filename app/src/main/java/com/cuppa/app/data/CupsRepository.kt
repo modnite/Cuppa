@@ -426,6 +426,30 @@ class CupsRepository(
     }
 
     /**
+     * Rename a managed printer.
+     *
+     * Printers are keyed by name in the native queue registry and in the mDNS service name
+     * ("<name> (Cuppa)"), so a rename removes the old native queue and registers the new one.
+     * The stored entry keeps its URI, so the physical printer and its settings are untouched.
+     * The advertiser watches [printers], so the new name is broadcast without a restart.
+     */
+    fun renamePrinter(uri: String, newName: String): Boolean {
+        val current = _printers.value.toMutableList()
+        val index = current.indexOfFirst { it.uri == uri }
+        if (index < 0) return false
+        val existing = current[index]
+        if (existing.name == newName) return true
+
+        CupsEngine.removePrinterFromNative(existing.name)
+        val renamed = existing.copy(name = newName)
+        current[index] = renamed
+        _printers.value = current
+        CupsEngine.addPrinterToNative(renamed)
+        Log.i(TAG, "Renamed printer '${existing.name}' -> '$newName' ($uri)")
+        return true
+    }
+
+    /**
      * Persist the current printer list to SharedPreferences as JSON.
      */
     fun savePrinters(context: Context) {
