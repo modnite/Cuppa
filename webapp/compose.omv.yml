@@ -36,8 +36,9 @@ services:
       - CHANGE_TO_COMPOSE_DATA_PATH/cuppa/cups:/etc/cups
       # The host's D-Bus, so Cuppa can use the host's Avahi when it has one.
       - /run/dbus:/host-dbus
-      # Uncomment to share USB printers plugged into the NAS.
-      # - /dev/bus/usb:/dev/bus/usb
+      # USB printers plugged into the NAS (thermal label printers and USB IPP
+      # printers). On a few firmwares this still needs `privileged: true`.
+      - /dev/bus/usb:/dev/bus/usb
 
     # Helps Avahi/CUPS on some NAS kernels. On a few setups USB also needs
     # `privileged: true` (see below).

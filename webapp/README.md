@@ -113,16 +113,17 @@ everything.
 
 ## USB printers
 
-Network/AirPrint printers need nothing special. To share a printer plugged into
-the NAS over USB, uncomment the device mount in `docker-compose.yml`:
+Network/AirPrint printers need nothing special. USB printers work too — the
+compose file already passes through `/dev/bus/usb`, so CUPS sees them:
 
-```yaml
-volumes:
-  - ./data:/data
-  - /dev/bus/usb:/dev/bus/usb
-```
+- **Thermal / label printers** (e.g. the Rollo X1038): add as a
+  **Thermal (TSPL)** printer. Cuppa encodes the label itself and the CUPS USB
+  backend writes it, exactly like the Android app.
+- **USB IPP / AirPrint printers** (e.g. HP DeskJet): the image runs `ipp-usb`,
+  so they appear like a network IPP printer and use IPP Everywhere.
 
-Some NAS firmware also needs `privileged: true` (commented in the compose file).
+On some NAS firmware USB still needs `privileged: true` (commented in the
+compose file).
 
 ## Thermal label printers
 

@@ -40,6 +40,8 @@ RUN apt-get update \
         avahi-daemon \
         avahi-utils \
         dbus \
+        ipp-usb \
+        usbutils \
         ghostscript \
         poppler-utils \
         supervisor \

@@ -37,8 +37,9 @@ services:
       - ./data/cups:/etc/cups
       # Lets Cuppa use the host's Avahi when the NAS runs one (OMV, Synology).
       - /run/dbus:/host-dbus
-      # Uncomment to share USB printers plugged into the NAS.
-      # - /dev/bus/usb:/dev/bus/usb
+      # USB printers plugged into the NAS (thermal label printers and USB IPP
+      # printers). On a few firmwares this still needs `privileged: true`.
+      - /dev/bus/usb:/dev/bus/usb
 
     # Some NAS firmwares need these for Avahi/USB access. Harmless otherwise.
     cap_add:
