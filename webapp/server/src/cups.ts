@@ -156,8 +156,10 @@ export async function listPrinters(): Promise<PrinterView[]> {
 
   if (response.statusCode !== 0) logIppFailure("CUPS-Get-Printers", response);
 
-  const printerGroup = response.groups.find((group) => group.tag === IPP_TAG.printerAttributes);
-  const records = groupRecords(printerGroup, "printer-name");
+  const printerGroupRecords = response.groups
+    .filter((group) => group.tag === IPP_TAG.printerAttributes)
+    .flatMap((group) => groupRecords(group, "printer-name"));
+  const records = printerGroupRecords;
   const defaultQueue = await getDefaultQueue();
   const ip = primaryIPv4();
 
@@ -388,10 +390,11 @@ export async function listJobs(scope: "active" | "history" | "all"): Promise<Job
 
   if (response.statusCode !== 0) logIppFailure("CUPS-Get-Jobs", response);
 
-  const jobGroup = response.groups.find((group) => group.tag === IPP_TAG.jobAttributes);
-  const records = groupRecords(jobGroup, "job-id");
+  const jobGroupRecords = response.groups
+    .filter((group) => group.tag === IPP_TAG.jobAttributes)
+    .flatMap((group) => groupRecords(group, "job-id"));
 
-  const jobs: JobView[] = records.map((record) => {
+  const jobs: JobView[] = jobGroupRecords.map((record) => {
     const id = recordNumber(record, "job-id");
     const state = recordNumber(record, "job-state", 3);
     const printerUri = recordString(record, "job-printer-uri");
