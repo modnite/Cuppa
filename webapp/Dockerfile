@@ -61,6 +61,10 @@ COPY --from=web-build /build/web/dist ./web
 COPY docker/ /etc/cuppa/
 RUN chmod +x /etc/cuppa/entrypoint.sh
 
+# Paced USB backend for thermal label printers: the Rollo X1038 silently drops
+# large unpaced bulk writes, so it needs 1 KiB chunks with a short pause.
+RUN install -o root -g root -m 0755 /etc/cuppa/cuppa-usb.js /usr/lib/cups/backend/cuppa-usb
+
 # cupsd.conf replaces the distro default; avahi-daemon.conf likewise.
 RUN cp /etc/cuppa/cupsd.conf /etc/cups/cupsd.conf \
     && cp /etc/cuppa/avahi-daemon.conf /etc/avahi/avahi-daemon.conf \

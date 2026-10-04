@@ -284,6 +284,13 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
     }
   }
 
+  // A thermal printer on USB goes through the paced cuppa-usb backend: the
+  // stock USB backend sends the whole label in large unpaced writes, which the
+  // Rollo X1038's firmware ACKs and then silently drops without firing the head.
+  if (thermalConfig && /^usb:\/\//i.test(deviceUri)) {
+    deviceUri = deviceUri.replace(/^usb:/i, "cuppa-usb:");
+  }
+
   const args = ["-p", queue, "-E", "-v", deviceUri];
   let ppdPath: string | null = null;
   if (thermalConfig) {
