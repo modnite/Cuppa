@@ -1,0 +1,48 @@
+# OpenMediaVault Compose plugin variant of the Cuppa web app.
+#
+# In OMV: Services -> Compose -> Files -> Add (+), paste this in, then start it.
+# OMV substitutes CHANGE_TO_COMPOSE_DATA_PATH with the shared folder configured
+# for the Compose plugin, so Cuppa's data lands on your storage pool.
+#
+#   Image: ghcr.io/modnite/cuppa-web
+#   UI:    http://<omv-ip>:8631
+#
+# Host networking is required: Bonjour/AirPrint discovery is multicast and must
+# reach the LAN, and CUPS needs to see the printers directly.
+name: cuppa
+
+services:
+  cuppa:
+    image: ghcr.io/modnite/cuppa-web:latest
+    container_name: cuppa
+    restart: unless-stopped
+
+    network_mode: host
+
+    environment:
+      TZ: ${TZ:-UTC}
+      CUPPA_WEB_PORT: ${CUPPA_WEB_PORT:-8631}
+      CUPPA_IPP_PORT: ${CUPPA_IPP_PORT:-631}
+      # Optional admin password, applied on first start. Leave empty for no login.
+      CUPPA_ADMIN_PASSWORD: ${CUPPA_ADMIN_PASSWORD:-}
+
+    volumes:
+      # Cuppa settings, printer names and thermal config persist here.
+      - CHANGE_TO_COMPOSE_DATA_PATH/cuppa/data:/data
+      # CUPS queues, PPDs and the TLS certificate persist here too.
+      - CHANGE_TO_COMPOSE_DATA_PATH/cuppa/cups:/etc/cups
+      # Uncomment to share USB printers plugged into the NAS.
+      # - /dev/bus/usb:/dev/bus/usb
+
+    # Helps Avahi/CUPS on some NAS kernels. On a few setups USB also needs
+    # `privileged: true` (see below).
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    security_opt:
+      - apparmor:unconfined
+    # privileged: true
+
+# If the images are private, log the NAS in to GHCR first (OMV terminal):
+#   echo <PAT-with-read:packages> | docker login ghcr.io -u modnite --password-stdin
+# or set the cuppa-web package to Public in its GitHub package settings.

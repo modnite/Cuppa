@@ -41,6 +41,10 @@ The image is built and published by CI, so the NAS only ever pulls.
 On the NAS's Docker plugin (UGREEN UGOS, Synology, QNAP, etc.) you can paste the
 same compose file into the "Project" / "Compose" editor instead.
 
+On **OpenMediaVault**, use the Compose plugin (**Services → Compose → Files → Add**)
+and paste [`compose.omv.yml`](compose.omv.yml) instead — it uses OMV's
+`CHANGE_TO_COMPOSE_DATA_PATH` so data lands on your storage pool.
+
 > **Host networking is required.** Bonjour/AirPrint discovery is multicast, and
 > Docker's default bridge network hides it. The compose file sets
 > `network_mode: host`, which also lets CUPS see printers on the LAN.
