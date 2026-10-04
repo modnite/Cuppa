@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PrintDisabled
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Usb
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
@@ -94,6 +95,7 @@ fun PrintersScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var testPrintPrinter by remember { mutableStateOf<PrinterInfo?>(null) }
     var renamePrinter by remember { mutableStateOf<PrinterInfo?>(null) }
+    var thermalPrinter by remember { mutableStateOf<PrinterInfo?>(null) }
 
     // Show snackbar for operation results
     LaunchedEffect(uiState.operationResult) {
@@ -177,6 +179,7 @@ fun PrintersScreen(
                     onAddPrinter = { viewModel.addPrinter(it) },
                     onTestPrint = { testPrintPrinter = it },
                     onRenamePrinter = { renamePrinter = it },
+                    onThermalSettings = { thermalPrinter = it },
                 )
             }
         }
@@ -215,6 +218,14 @@ fun PrintersScreen(
                 },
             )
         }
+
+        // Per-printer thermal settings dialog
+        thermalPrinter?.let { printer ->
+            PrinterThermalDialog(
+                printer = printer,
+                onDismiss = { thermalPrinter = null },
+            )
+        }
     
         }
         }
@@ -242,6 +253,7 @@ private fun PrintersContent(
     onAddPrinter: (DiscoveredPrinter) -> Unit,
     onTestPrint: (PrinterInfo) -> Unit,
     onRenamePrinter: (PrinterInfo) -> Unit,
+    onThermalSettings: (PrinterInfo) -> Unit,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth >= 840.dp) {
@@ -260,6 +272,7 @@ private fun PrintersContent(
                         onAddPrinter = onAddPrinter,
                         onTestPrint = onTestPrint,
                         onRenamePrinter = onRenamePrinter,
+                        onThermalSettings = onThermalSettings,
                     )
                 }
             }
@@ -277,6 +290,7 @@ private fun PrintersContent(
                 onAddPrinter = onAddPrinter,
                 onTestPrint = onTestPrint,
                 onRenamePrinter = onRenamePrinter,
+                onThermalSettings = onThermalSettings,
             )
         }
     }
@@ -296,6 +310,7 @@ private fun PrintersList(
     onAddPrinter: (DiscoveredPrinter) -> Unit,
     onTestPrint: (PrinterInfo) -> Unit,
     onRenamePrinter: (PrinterInfo) -> Unit,
+    onThermalSettings: (PrinterInfo) -> Unit,
 ) {
     var showDiscovered by rememberSaveable { mutableStateOf(true) }
     val discoveredCount = discoveredUsbPrinters.size + discoveredNetworkPrinters.size
@@ -371,6 +386,7 @@ private fun PrintersList(
                     onRemove = { onRemovePrinter(printer.uri) },
                     onTestPrint = { onTestPrint(printer) },
                     onRename = { onRenamePrinter(printer) },
+                    onThermalSettings = { onThermalSettings(printer) },
                 )
             }
         }
@@ -443,6 +459,7 @@ private fun AddedPrinterCard(
     onRemove: () -> Unit,
     onTestPrint: () -> Unit,
     onRename: () -> Unit,
+    onThermalSettings: () -> Unit,
 ) {
     // Set by the reachability check that decides what Cuppa advertises to the network. It only
     // runs while the server is on, and is empty until the first check finishes.
@@ -591,6 +608,15 @@ private fun AddedPrinterCard(
                 Icon(
                     imageVector = Icons.Outlined.Edit,
                     contentDescription = "Rename printer",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Per-printer thermal override (dialect, label size, density, speed, dither, polarity).
+            IconButton(onClick = onThermalSettings) {
+                Icon(
+                    imageVector = Icons.Outlined.Tune,
+                    contentDescription = "Thermal settings",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

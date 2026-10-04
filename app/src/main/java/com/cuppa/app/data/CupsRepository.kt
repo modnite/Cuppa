@@ -1,6 +1,7 @@
 package com.cuppa.app.data
 
 import android.content.Context
+import com.cuppa.app.data.thermal.ThermalConfigStore
 import com.cuppa.app.util.CuppaLog
 import com.cuppa.app.util.CuppaLog as Log
 import com.cuppa.app.util.safeProductName
@@ -421,6 +422,8 @@ class CupsRepository(
             if (printerToRemove != null) {
                 CupsEngine.removePrinterFromNative(printerToRemove.name)
             }
+            // Drop any per-printer thermal override so a re-added printer starts from the globals.
+            context?.let { ThermalConfigStore.getInstance(it).remove(uri) }
             Log.i(TAG, "Removed printer: $uri from managed list and native engine")
         }
     }

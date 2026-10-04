@@ -9,6 +9,8 @@ import android.os.ParcelFileDescriptor
 import com.cuppa.app.util.CuppaLog as Log
 import com.cuppa.app.backend.usb.UsbPrinterBackend
 import com.cuppa.app.data.CupsRepository
+import com.cuppa.app.data.thermal.ThermalConfigStore
+import com.cuppa.app.data.thermal.ThermalDialect
 import com.cuppa.app.data.thermal.ThermalPreferences
 import com.cuppa.cups.CupsEngine
 import com.cuppa.cups.PrintJob
@@ -21,6 +23,7 @@ import com.cuppa.cups.thermal.TsplDriver
 import com.cuppa.cups.thermal.ZplDriver
 import kotlinx.coroutines.*
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * PrintJobDispatcher — Polls the local CupsEngine for pending spool jobs and dispatches
@@ -33,6 +36,10 @@ class PrintJobDispatcher(
     companion object {
         private const val TAG = "PrintJobDispatcher"
         private const val POLL_INTERVAL_MS = 1500L
+
+        /** Millimetres to printhead dots at the label resolution (203dpi for TSPL/ZPL/EPL). */
+        private fun mmToDots(mm: Double, dpi: Int = 203): Int =
+            ((mm / 25.4) * dpi).roundToInt().coerceAtLeast(1)
     }
 
     private var pollJob: Job? = null
@@ -40,6 +47,7 @@ class PrintJobDispatcher(
     private val usbBackend = UsbPrinterBackend(context)
     private val cupsRepo = CupsRepository.getInstance(context)
     private val thermalPrefs = ThermalPreferences(context)
+    private val thermalConfigStore = ThermalConfigStore.getInstance(context)
 
     fun start() {
         if (pollJob != null) return
@@ -164,35 +172,67 @@ class PrintJobDispatcher(
     ): Boolean {
         Log.i(TAG, "Rendering PDF pages for thermal printing to ${printer.name} ($copies cop${if (copies == 1) "y" else "ies"})")
         val tp = thermalPrefs.settings.value
+        // Per-printer override, if the user saved one from the printer's Thermal settings dialog.
+        // Absent means this printer keeps using the global ThermalPreferences and the automatic
+        // keyword detection below, exactly as before.
+        val override = thermalConfigStore.get(printer.uri)
         return try {
             val pfd = ParcelFileDescriptor.open(spoolFile, ParcelFileDescriptor.MODE_READ_ONLY)
             PdfRenderer(pfd).use { renderer ->
                 val pageCount = renderer.pageCount
                 val ident = "${printer.name} ${printer.makeAndModel} ${printer.uri}".lowercase()
 
-                // Classify by explicit make/model keywords. Anything that doesn't match a known
-                // thermal/label language falls through to PCL raster (see PclDriver) rather than
-                // silently defaulting to a label-printer language it can't understand — a plain
-                // USB laser/inkjet printer sent ZPL or TSPL would accept the bytes and print
-                // nothing, with no error surfaced anywhere.
-                val isEscPos = "esc" in ident || "receipt" in ident || "pos" in ident
-                // 0x09c5 is the confirmed USB vendor ID of the Rollo X1038 (reports itself only as a generic
-                // "Printer", so its name never contains "rollo"); it lives in the usb:// URI.
-                val isRollo = "rollo" in ident || "1038" in ident || "tspl" in ident || "0x09c5" in ident
-                val isZebra = !isRollo && ("zebra" in ident || "zpl" in ident || "zd4" in ident || "gk4" in ident)
-                val isEltron = "eltron" in ident || "epl" in ident || "lp2844" in ident || "tlp2844" in ident
+                // An explicit dialect in the override replaces the keyword guess; AUTO (or no
+                // override at all) keeps the automatic classification.
+                val forced = override?.dialect?.takeIf { it != ThermalDialect.AUTO }
+                val isEscPos: Boolean
+                val isRollo: Boolean
+                val isZebra: Boolean
+                val isEltron: Boolean
+                if (forced != null) {
+                    isEscPos = forced == ThermalDialect.ESCPOS
+                    isRollo = forced == ThermalDialect.TSPL
+                    isZebra = forced == ThermalDialect.ZPL
+                    isEltron = forced == ThermalDialect.EPL
+                } else {
+                    // Classify by explicit make/model keywords. Anything that doesn't match a known
+                    // thermal/label language falls through to PCL raster (see PclDriver) rather than
+                    // silently defaulting to a label-printer language it can't understand — a plain
+                    // USB laser/inkjet printer sent ZPL or TSPL would accept the bytes and print
+                    // nothing, with no error surfaced anywhere.
+                    isEscPos = "esc" in ident || "receipt" in ident || "pos" in ident
+                    // 0x09c5 is the confirmed USB vendor ID of the Rollo X1038 (reports itself only as a generic
+                    // "Printer", so its name never contains "rollo"); it lives in the usb:// URI.
+                    isRollo = "rollo" in ident || "1038" in ident || "tspl" in ident || "0x09c5" in ident
+                    isZebra = !isRollo && ("zebra" in ident || "zpl" in ident || "zd4" in ident || "gk4" in ident)
+                    isEltron = "eltron" in ident || "epl" in ident || "lp2844" in ident || "tlp2844" in ident
+                }
+
+                // Effective printhead settings: the per-printer override when present, otherwise
+                // the global defaults.
+                val density = override?.density ?: tp.darkness
+                val speed = override?.speed ?: tp.speedIps
+                val ditherMode = override?.ditherMode ?: tp.ditherMode
+                val invertPolarity = override?.invertPolarity ?: tp.invertPolarity
+                val gapMm = override?.gapMm ?: 3.0
+                // A configured label size only has meaning for the label dialects; ESC/POS receipts
+                // and generic PCL pages keep their fixed render sizes.
+                val isLabelDialect = isRollo || isZebra || isEltron
+                val labelWidthDots = if (override != null && isLabelDialect) mmToDots(override.labelWidthMm) else null
+                val labelHeightDots = if (override != null && isLabelDialect) mmToDots(override.labelHeightMm) else null
 
                 for (pageIndex in 0 until pageCount) {
                     val page = renderer.openPage(pageIndex)
                     // Thermal/label formats render at a small fixed width matching their DPI;
                     // a generic PCL laser/inkjet page is rendered near a real 300dpi Letter page.
-                    val width = when {
+                    // A per-printer label size overrides the fixed label width/height.
+                    val width = labelWidthDots ?: when {
                         isEscPos -> 576 // 80mm @ 203dpi
-                        isRollo || isZebra || isEltron -> 812 // 4" @ 203dpi
+                        isLabelDialect -> 812 // 4" @ 203dpi
                         else -> 2550 // 8.5" @ 300dpi
                     }
                     val aspectRatio = page.height.toFloat() / page.width.toFloat()
-                    val height = (width * aspectRatio).toInt().coerceAtLeast(100)
+                    val height = labelHeightDots ?: (width * aspectRatio).toInt().coerceAtLeast(100)
 
                     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
@@ -209,28 +249,29 @@ class PrintJobDispatcher(
                     // result" rather than accidentally cancelling out a required format constant.
                     val pagePayload = when {
                         isEscPos -> EscPosDriver(characterWidth = 48)
-                            .printImage(bitmap, ditherMode = tp.ditherMode, invertPolarity = tp.invertPolarity)
+                            .printImage(bitmap, ditherMode = ditherMode, invertPolarity = invertPolarity)
                             .feed(2)
                             .cutPaper(partial = true)
                             .build()
                         isRollo -> TsplDriver.fromBitmap(
                             TsplDriver.centerOnPrintHead(bitmap),
-                            density = (tp.darkness / 2).coerceIn(0, 15),
-                            speed = tp.speedIps,
-                            ditherMode = tp.ditherMode,
-                            invertPolarity = true xor tp.invertPolarity
+                            density = (density / 2).coerceIn(0, 15),
+                            speed = speed,
+                            gapMm = gapMm,
+                            ditherMode = ditherMode,
+                            invertPolarity = true xor invertPolarity
                         )
                         isZebra -> ZplDriver(widthDots = width, lengthDots = height)
-                            .setDarkness(tp.darkness)
-                            .setPrintSpeed(tp.speedIps)
-                            .drawBitmap(0, 0, bitmap, ditherMode = tp.ditherMode, invertPolarity = tp.invertPolarity)
+                            .setDarkness(density)
+                            .setPrintSpeed(speed)
+                            .drawBitmap(0, 0, bitmap, ditherMode = ditherMode, invertPolarity = invertPolarity)
                             .build()
                         isEltron -> EplDriver(widthDots = width, lengthDots = height)
-                            .setDensity((tp.darkness / 2).coerceIn(0, 15))
-                            .setSpeed(tp.speedIps.coerceIn(1, 5))
-                            .drawBitmap(0, 0, bitmap, ditherMode = tp.ditherMode, invertPolarity = true xor tp.invertPolarity)
+                            .setDensity((density / 2).coerceIn(0, 15))
+                            .setSpeed(speed.coerceIn(1, 5))
+                            .drawBitmap(0, 0, bitmap, ditherMode = ditherMode, invertPolarity = true xor invertPolarity)
                             .build()
-                        else -> PclDriver.fromBitmap(bitmap, dpi = 300, ditherMode = tp.ditherMode)
+                        else -> PclDriver.fromBitmap(bitmap, dpi = 300, ditherMode = ditherMode)
                     }
 
                     repeat(copies) {
