@@ -123,7 +123,7 @@ export function Printers({ notify }: { notify: Notify }) {
                   {[printer.makeAndModel, printer.location].filter(Boolean).join(" · ")}
                 </div>
                 <div className="printer-origin">{printer.deviceUri}</div>
-                <div className="row" style={{ marginTop: 7, gap: 8 }}>
+                <div className="row printer-pills" style={{ marginTop: 7, gap: 8 }}>
                   <StatusPill state={printer.state} stateLabel={printer.stateLabel} offline={!printer.enabled} />
                   {printer.driver ? <span className="pill">{printer.driver}</span> : null}
                   {printer.color ? <span className="pill">Color</span> : null}

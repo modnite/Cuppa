@@ -390,6 +390,11 @@ a:hover {
   display: grid;
   gap: 14px;
 }
+/* Grid items default to min-width:auto, which lets a wide child push the whole
+   card past the window. Let them shrink instead. */
+.grid > * {
+  min-width: 0;
+}
 .grid.cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -606,6 +611,7 @@ a:hover {
   padding: 3px 8px;
   cursor: pointer;
   border: 0;
+  min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -624,6 +630,10 @@ a:hover {
   flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.printer-pills {
+  flex-wrap: wrap;
 }
 
 /* ------------------------------------------------------------------ Toggle */
@@ -1191,5 +1201,28 @@ a:hover {
   }
   .toasts {
     bottom: 14px;
+  }
+  /* Compact the top bar so all four tabs fit without scrolling. */
+  .sidebar {
+    padding: 8px 8px;
+    gap: 4px;
+  }
+  .brand {
+    padding: 0 6px 0 2px;
+  }
+  .brand-name {
+    display: none;
+  }
+  .nav {
+    gap: 1px;
+  }
+  .nav-item {
+    padding: 6px 8px;
+    font-size: 12.5px;
+    gap: 7px;
+  }
+  .nav-item svg {
+    width: 15px;
+    height: 15px;
   }
 }
