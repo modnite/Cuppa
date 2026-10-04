@@ -19,7 +19,7 @@ export const ENV = {
   /** Directory Avahi reads static service files from. */
   avahiServicesDir: process.env.CUPPA_AVAHI_DIR ?? "/etc/avahi/services",
   /** Path to the CUPS test page, used by Test Print. */
-  testPage: process.env.CUPPA_TEST_PAGE ?? "/usr/share/cups/data/testprint",
+  testPage: process.env.CUPPA_TEST_PAGE ?? "/usr/share/cups/data/default-testpage.pdf",
   /** Optional admin password applied on first start, before the UI is used. */
   adminPassword: process.env.CUPPA_ADMIN_PASSWORD ?? "",
   /**

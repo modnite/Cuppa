@@ -13,11 +13,16 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
+  // Only declare a JSON content type when there is actually a JSON body. A
+  // bodyless POST with Content-Type: application/json is rejected by the server
+  // with 400 (empty JSON body), which is what broke Test Print and friends.
+  const isForm = init?.body instanceof FormData;
+  const hasBody = init?.body !== undefined && init?.body !== null;
   try {
     response = await fetch(path, {
       credentials: "same-origin",
-      headers: init?.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
       ...init,
+      headers: isForm || !hasBody ? init?.headers : { "Content-Type": "application/json", ...init?.headers },
     });
   } catch (error) {
     // fetch only rejects on a genuine network/connection failure.

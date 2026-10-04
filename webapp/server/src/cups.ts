@@ -225,17 +225,52 @@ function resolveDriver(deviceUri: string, requested: AddPrinterInput["driver"]):
   return /^(ipp|ipps|dnssd):/i.test(deviceUri) ? "everywhere" : "raw";
 }
 
+/** Derives the printer's IPP endpoint from a raw socket/LPD address. */
+function deriveIppUri(deviceUri: string): string | null {
+  const match = /^(?:socket|lpd):\/\/([^/:?]+)/i.exec(deviceUri);
+  return match ? `ipp://${match[1]}:631/ipp/print` : null;
+}
+
+/**
+ * Checks whether a printer actually speaks IPP Everywhere at [ippUri] by asking
+ * CUPS to build a driverless PPD for a throwaway queue. This is how a printer
+ * that only advertises its raw port (a Brother, typically) still ends up on the
+ * IPP path, where CUPS converts PDF to raster instead of sending raw bytes the
+ * printer cannot read.
+ */
+async function probeIppEverywhere(ippUri: string): Promise<boolean> {
+  const probe = `cuppa_probe_${Date.now()}`;
+  try {
+    const result = await run("lpadmin", ["-p", probe, "-E", "-v", ippUri, "-m", "everywhere"], { timeoutMs: 30_000 });
+    return result.code === 0 && existsSync(`/etc/cups/ppd/${probe}.ppd`);
+  } finally {
+    await run("lpadmin", ["-x", probe]);
+  }
+}
+
 /** Creates a queue and records Cuppa's display metadata for it. */
 export async function addPrinter(input: AddPrinterInput): Promise<string> {
-  const deviceUri = input.deviceUri.trim();
+  let deviceUri = input.deviceUri.trim();
   if (!deviceUri) throw new Error("A device URI is required");
 
   const displayName = input.displayName.trim() || "Cuppa Printer";
   const queue = uniqueResourceName(displayName, await existingQueues());
-  const driver = resolveDriver(deviceUri, input.driver);
+  let driver = resolveDriver(deviceUri, input.driver);
   const shared = input.shared ?? true;
   const location = (input.location ?? "").trim();
   const thermalConfig = input.thermal ? defaultThermalConfig(input.thermal) : null;
+
+  // A raw socket/LPD printer may still speak IPP on 631. Probe for it so CUPS
+  // uses IPP Everywhere and converts PDFs to raster rather than passing a PDF
+  // through to a printer that cannot read it.
+  if (!thermalConfig && driver === "raw") {
+    const ippUri = deriveIppUri(deviceUri);
+    if (ippUri && (await probeIppEverywhere(ippUri))) {
+      log.info(`Using IPP Everywhere for ${queue} at ${ippUri} (was ${deviceUri})`);
+      deviceUri = ippUri;
+      driver = "everywhere";
+    }
+  }
 
   const args = ["-p", queue, "-E", "-v", deviceUri];
   let ppdPath: string | null = null;
@@ -382,8 +417,10 @@ export async function testPrint(queue: string): Promise<void> {
     return;
   }
 
-  if (existsSync(ENV.testPage)) {
-    await printFile(queue, ENV.testPage, "Cuppa Test Page");
+  const testPages = [ENV.testPage, "/usr/share/cups/data/default-testpage.pdf", "/usr/share/cups/data/testprint"];
+  const testPage = testPages.find((candidate) => existsSync(candidate));
+  if (testPage) {
+    await printFile(queue, testPage, "Cuppa Test Page");
     return;
   }
   const temporary = path.join(os.tmpdir(), `cuppa-test-${Date.now()}.txt`);

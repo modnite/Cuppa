@@ -1005,9 +1005,7 @@ a:hover {
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.2;
-  white-space: normal;
-  text-align: center;
-  max-width: min(260px, 70vw);
+  white-space: nowrap;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   opacity: 0;
   pointer-events: none;
