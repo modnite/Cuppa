@@ -57,7 +57,6 @@ RUN apt-get update \
         printer-driver-foo2zjs \
         printer-driver-gutenprint \
         printer-driver-hpcups \
-        printer-driver-indexbraille \
         printer-driver-m2300w \
         printer-driver-min12xxw \
         printer-driver-oki \

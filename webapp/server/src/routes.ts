@@ -14,8 +14,10 @@ import {
   listDrivers,
   listJobs,
   listPrinters,
+  networkDiagnostics,
   printFile,
   probeCups,
+  probeUri,
   removePrinter,
   renamePrinter,
   setAccepting,
@@ -252,6 +254,16 @@ export function registerRoutes(app: FastifyInstance): void {
   app.get("/api/discover", async () => ({ devices: await discoverDevices() }));
   app.get("/api/drivers", async () => ({ drivers: await listDrivers() }));
   app.get("/api/diagnostics", async () => collectDiagnostics());
+  app.get("/api/diagnostics/network", async () => ({ probes: await networkDiagnostics() }));
+  app.post("/api/diagnostics/probe", async (request, reply) => {
+    const body = (request.body ?? {}) as { uri?: string; label?: string };
+    try {
+      return { probe: await probeUri(body.uri ?? "", body.label) };
+    } catch (error) {
+      reply.code(400);
+      return { error: errorMessage(error) };
+    }
+  });
 
   // ---- Jobs ----
   app.get("/api/jobs", async (request) => {

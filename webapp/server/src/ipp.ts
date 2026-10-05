@@ -1,4 +1,5 @@
 import http from "node:http";
+import https from "node:https";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 
@@ -280,18 +281,42 @@ export async function ippRequest(
   path = "/",
   timeoutMs = 15_000
 ): Promise<IppResponse> {
+  return ippRequestTo({ host: ENV.cupsHost, port: ENV.ippPort, path }, operation, groups, timeoutMs);
+}
+
+/** An arbitrary IPP endpoint, used to query a printer directly for diagnostics. */
+export interface IppTarget {
+  host: string;
+  port: number;
+  path?: string;
+  secure?: boolean;
+}
+
+/**
+ * Sends one IPP request to any host. Same codec as `ippRequest`, but the target
+ * is a remote printer rather than the local CUPS scheduler.
+ */
+export async function ippRequestTo(
+  target: IppTarget,
+  operation: number,
+  groups: IppGroup[],
+  timeoutMs = 15_000
+): Promise<IppResponse> {
   requestCounter = (requestCounter + 1) & 0x7fffffff;
   const requestId = requestCounter;
   const body = buildRequest(operation, requestId, groups);
+  const transport = target.secure ? https : http;
 
   return new Promise<IppResponse>((resolve, reject) => {
-    const request = http.request(
+    const request = transport.request(
       {
-        host: ENV.cupsHost,
-        port: ENV.ippPort,
-        path,
+        host: target.host,
+        port: target.port,
+        path: target.path ?? "/",
         method: "POST",
         headers: { "Content-Type": "application/ipp", "Content-Length": body.length },
+        // Self-signed certificates are the norm on printers.
+        rejectUnauthorized: false,
       },
       (response) => {
         const chunks: Buffer[] = [];

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { open } from "node:fs/promises";
 import http from "node:http";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { ENV } from "./env.js";
@@ -11,6 +13,7 @@ import {
   commonAttributes,
   groupRecords,
   ippRequest,
+  ippRequestTo,
   logIppFailure,
   multi,
   opGroup,
@@ -646,23 +649,46 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
       return "(no /var/log/cups/error_log)";
     }
   })();
-  const [devices, queues, printers, jobs, backends, thermal, usbDevices, usbTree, usbNodes, printerOptions, config] =
-    await Promise.all([
-      text("lpinfo", ["-v"]),
-      text("lpstat", ["-v"]),
-      text("lpstat", ["-p", "-d"]),
-      text("lpstat", ["-W", "all", "-o"]),
-      text("ls", ["-l", "/usr/lib/cups/backend"]),
-      Promise.resolve(listThermalQueues().join("\n")),
-      text("lsusb", []),
-      text("lsusb", ["-t"]),
-      text("sh", ["-c", "ls -l /dev/usb/lp* /dev/bus/usb/*/* 2>/dev/null || true"]),
-      text("sh", [
-        "-c",
-        "for p in $(lpstat -v 2>/dev/null | sed -n 's/^device for \\(.*\\): .*/\\1/p'); do echo \"# $p\"; lpoptions -p \"$p\" -l 2>/dev/null | head -80; echo; done",
-      ]),
-      text("sh", ["-c", "grep -vE '^\\s*#|^\\s*$' /etc/cups/cupsd.conf | head -80"]),
-    ]);
+  const [
+    devices,
+    queues,
+    printers,
+    jobs,
+    backends,
+    thermal,
+    usbDevices,
+    usbTree,
+    usbNodes,
+    printerOptions,
+    config,
+    services,
+    mdns,
+  ] = await Promise.all([
+    // `lpinfo -v` returns non-zero when any discovery backend hiccups (a broken
+    // driverless/ippfind does this), so keep the output it did produce.
+    text("sh", ["-c", "lpinfo -v 2>&1 || true"]),
+    text("lpstat", ["-v"]),
+    text("lpstat", ["-p", "-d"]),
+    text("lpstat", ["-W", "all", "-o"]),
+    text("ls", ["-l", "/usr/lib/cups/backend"]),
+    Promise.resolve(listThermalQueues().join("\n")),
+    text("lsusb", []),
+    text("lsusb", ["-t"]),
+    text("sh", ["-c", "ls -l /dev/usb/lp* /dev/bus/usb/*/* 2>/dev/null || true"]),
+    text("sh", [
+      "-c",
+      "for p in $(lpstat -v 2>/dev/null | sed -n 's/^device for \\(.*\\): .*/\\1/p'); do echo \"# $p\"; lpoptions -p \"$p\" -l 2>/dev/null | head -80; echo; done",
+    ]),
+    text("sh", ["-c", "grep -vE '^\\s*#|^\\s*$' /etc/cups/cupsd.conf | head -80"]),
+    text("sh", [
+      "-c",
+      "ps -eo pid,comm,args 2>/dev/null | grep -E 'cupsd|avahi|ipp-usb|dbus-daemon|node ' | grep -v grep || true",
+    ]),
+    text("sh", [
+      "-c",
+      "echo '-- sockets --'; ls -l /run/dbus/system_bus_socket /host-dbus/system_bus_socket /run/avahi-daemon/socket 2>&1; echo; echo '-- _ipp._tcp --'; timeout 6 avahi-browse -rt _ipp._tcp 2>&1 | head -40 || true",
+    ]),
+  ]);
   return {
     devices,
     queues,
@@ -675,6 +701,8 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
     usbNodes,
     printerOptions,
     cupsdConf: config,
+    services,
+    mdns,
     errorLog,
   };
 }
@@ -745,21 +773,65 @@ export async function usbSelfTest(queue: string): Promise<UsbSelfTestResult> {
     uri: string
   ): Promise<UsbSelfTestStep> => {
     const started = Date.now();
+    // CUPS calls a backend as: backend job-id user title copies options [file],
+    // with the device URI in DEVICE_URI. The stock USB backend prints its usage
+    // and exits 1 if the URI is passed as an argument instead.
     const result = await runWithInput(
       command,
-      [uri, "cuppa-selftest", "root", "Cuppa USB self-test", "1", "cuppa-test=1", "-"],
+      ["cuppa-selftest", "root", "Cuppa USB self-test", "1", "cuppa-test=1"],
       payload,
       { timeoutMs: 30_000, env: { DEVICE_URI: uri } }
     );
     return {
       name,
       detail,
-      command: `${command} ${uri}`,
+      command: `${command} (DEVICE_URI=${uri})`,
       code: result.code,
       durationMs: Date.now() - started,
       ok: result.code === 0,
       output: (result.stdout + result.stderr).trim(),
     };
+  };
+
+  const writeDevice = async (device: string, paced: boolean): Promise<UsbSelfTestStep> => {
+    const started = Date.now();
+    const label = paced ? "Kernel device write (paced)" : "Kernel device write";
+    const detail = `Writes straight to ${device}, bypassing libusb and CUPS entirely${
+      paced ? ", 1 KiB at a time" : ""
+    }.`;
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
+    try {
+      handle = await open(device, "w");
+      if (paced) {
+        for (let offset = 0; offset < payload.length; offset += 1024) {
+          await handle.write(payload.subarray(offset, offset + 1024));
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      } else {
+        await handle.write(payload);
+      }
+      return {
+        name: label,
+        detail,
+        command: `write ${payload.length} bytes -> ${device}`,
+        code: 0,
+        durationMs: Date.now() - started,
+        ok: true,
+        output: `Wrote ${payload.length} bytes to ${device}`,
+      };
+    } catch (error) {
+      return {
+        name: label,
+        detail,
+        command: `write ${payload.length} bytes -> ${device}`,
+        code: 1,
+        durationMs: Date.now() - started,
+        ok: false,
+        output: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      if (handle) await handle.close().catch(() => undefined);
+    }
   };
 
   steps.push(
@@ -781,28 +853,275 @@ export async function usbSelfTest(queue: string): Promise<UsbSelfTestResult> {
 
   const device = findUsbPrintDevice();
   if (device) {
-    const started = Date.now();
-    let ok = true;
-    let output = `Wrote ${payload.length} bytes to ${device}`;
-    try {
-      writeFileSync(device, payload);
-    } catch (error) {
-      ok = false;
-      output = error instanceof Error ? error.message : String(error);
-    }
-    steps.push({
-      name: "Kernel device write",
-      detail: `Writes straight to ${device}, bypassing libusb and CUPS entirely.`,
-      command: `write ${payload.length} bytes -> ${device}`,
-      code: ok ? 0 : 1,
-      durationMs: Date.now() - started,
-      ok,
-      output,
-    });
+    steps.push(await writeDevice(device, false));
+    steps.push(await writeDevice(device, true));
   }
 
   log.info(`USB self-test for ${queue}: ${steps.map((step) => `${step.name}=${step.ok ? "ok" : "fail"}`).join(", ")}`);
   return { queue, deviceUri: printer.deviceUri, usbUri, bytes: payload.length, steps };
+}
+
+// ---------------------------------------------------------------------------
+// Network printer diagnostics
+// ---------------------------------------------------------------------------
+
+export interface SupplyLevel {
+  name: string;
+  color: string;
+  type: string;
+  /** 0-100, or a negative IPP sentinel (-1 unknown, -2 unknown, -3 unavailable). */
+  level: number;
+}
+
+export interface NetworkProbe {
+  label: string;
+  deviceUri: string;
+  scheme: string;
+  host: string;
+  port: number;
+  tcp: { ok: boolean; ms: number; error: string };
+  ipp: {
+    attempted: boolean;
+    ok: boolean;
+    statusCode: number;
+    path: string;
+    makeAndModel: string;
+    state: number;
+    stateLabel: string;
+    stateReasons: string[];
+    stateMessage: string;
+    supplies: SupplyLevel[];
+    error: string;
+  } | null;
+}
+
+interface ParsedDeviceUri {
+  scheme: string;
+  host: string;
+  port: number;
+  path: string;
+  secure: boolean;
+}
+
+const DEFAULT_PORTS: Record<string, number> = {
+  ipp: 631,
+  ipps: 631,
+  http: 80,
+  https: 443,
+  socket: 9100,
+  lpd: 515,
+};
+
+/** Splits a device URI into the pieces a network probe needs. */
+export function parseDeviceUri(uri: string): ParsedDeviceUri | null {
+  const match = /^([a-z0-9+.-]+):\/\/([^/?#]+)(\/[^?#]*)?/i.exec(uri.trim());
+  if (!match) return null;
+  const scheme = match[1]!.toLowerCase();
+  const authority = match[2]!;
+  const path = match[3] && match[3] !== "" ? match[3] : "/";
+
+  // Host may be an IPv6 literal in brackets; take the last colon as the port
+  // separator only when what follows is all digits.
+  let host = authority;
+  let portText = "";
+  if (authority.startsWith("[")) {
+    const close = authority.indexOf("]");
+    if (close === -1) return null;
+    host = authority.slice(0, close + 1);
+    portText = authority.slice(close + 2);
+  } else {
+    const colon = authority.lastIndexOf(":");
+    if (colon !== -1 && /^\d+$/.test(authority.slice(colon + 1))) {
+      host = authority.slice(0, colon);
+      portText = authority.slice(colon + 1);
+    }
+  }
+
+  if (!host) return null;
+  return {
+    scheme,
+    host,
+    port: portText ? Number(portText) : DEFAULT_PORTS[scheme] ?? 0,
+    path,
+    secure: scheme === "ipps" || scheme === "https",
+  };
+}
+
+/** Opens a TCP connection and reports how long it took. */
+function tcpProbe(host: string, port: number, timeoutMs = 4000): Promise<{ ok: boolean; ms: number; error: string }> {
+  return new Promise((resolve) => {
+    if (!port) {
+      resolve({ ok: false, ms: 0, error: "No port in the device URI" });
+      return;
+    }
+    const started = Date.now();
+    const socket = net.connect({ host, port });
+    let settled = false;
+    const done = (ok: boolean, error = ""): void => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve({ ok, ms: Date.now() - started, error });
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false, "timed out"));
+    socket.once("error", (error) => done(false, error.message));
+  });
+}
+
+/** Asks a printer for its own attributes over IPP, trying each path in turn. */
+async function ippProbe(
+  host: string,
+  port: number,
+  secure: boolean,
+  paths: string[]
+): Promise<NonNullable<NetworkProbe["ipp"]>> {
+  let lastError = "no IPP response";
+  let lastStatus = -1;
+
+  for (const path of paths) {
+    try {
+      const printerUri = `${secure ? "ipps" : "ipp"}://${host}:${port}${path}`;
+      const response = await ippRequestTo(
+        { host, port, path, secure },
+        IPP_OP.GET_PRINTER_ATTRIBUTES,
+        [
+          opGroup([
+            ...commonAttributes(),
+            { tag: IPP_TAG.uri, name: "printer-uri", value: printerUri },
+            ...multi(IPP_TAG.keyword, "requested-attributes", [
+              "printer-make-and-model",
+              "printer-info",
+              "printer-state",
+              "printer-state-reasons",
+              "printer-state-message",
+              "marker-levels",
+              "marker-colors",
+              "marker-names",
+              "marker-types",
+              "printer-alert",
+              "printer-alert-description",
+            ]),
+          ]),
+        ],
+        6000
+      );
+      lastStatus = response.statusCode;
+      const group = response.groups.find((candidate) => candidate.tag === IPP_TAG.printerAttributes);
+      if (response.statusCode !== 0 || !group) {
+        lastError = `IPP status 0x${response.statusCode.toString(16)}`;
+        continue;
+      }
+
+      const state = Number(values(group, "printer-state")[0] ?? 0);
+      const levels = values(group, "marker-levels").filter((value): value is number => typeof value === "number");
+      const colors = values(group, "marker-colors").filter((value): value is string => typeof value === "string");
+      const names = values(group, "marker-names").filter((value): value is string => typeof value === "string");
+      const types = values(group, "marker-types").filter((value): value is string => typeof value === "string");
+      const supplies: SupplyLevel[] = levels.map((level, index) => ({
+        name: names[index] ?? `Supply ${index + 1}`,
+        color: colors[index] ?? "",
+        type: types[index] ?? "",
+        level,
+      }));
+
+      return {
+        attempted: true,
+        ok: true,
+        statusCode: response.statusCode,
+        path,
+        makeAndModel: String(values(group, "printer-make-and-model")[0] ?? ""),
+        state,
+        stateLabel: printerStateLabel(state),
+        stateReasons: values(group, "printer-state-reasons").filter(
+          (value): value is string => typeof value === "string" && value !== "none"
+        ),
+        stateMessage: String(values(group, "printer-state-message")[0] ?? ""),
+        supplies,
+        error: "",
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  return {
+    attempted: true,
+    ok: false,
+    statusCode: lastStatus,
+    path: "",
+    makeAndModel: "",
+    state: 0,
+    stateLabel: "",
+    stateReasons: [],
+    stateMessage: "",
+    supplies: [],
+    error: lastError,
+  };
+}
+
+/** Reachability and live IPP state for one network device URI. */
+export async function probeNetworkTarget(label: string, uri: string): Promise<NetworkProbe> {
+  const parsed = parseDeviceUri(uri);
+  if (!parsed) {
+    return {
+      label,
+      deviceUri: uri,
+      scheme: "?",
+      host: "",
+      port: 0,
+      tcp: { ok: false, ms: 0, error: "Unrecognised device URI" },
+      ipp: null,
+    };
+  }
+
+  // A dnssd:// URI names a Bonjour service, not an address; there is nothing to
+  // connect to until mDNS resolves it, which CUPS does when it prints.
+  if (parsed.scheme === "dnssd") {
+    return {
+      label,
+      deviceUri: uri,
+      scheme: parsed.scheme,
+      host: parsed.host,
+      port: parsed.port,
+      tcp: { ok: false, ms: 0, error: "Bonjour service name; resolved by CUPS when printing" },
+      ipp: null,
+    };
+  }
+
+  const tcp = await tcpProbe(parsed.host, parsed.port);
+
+  const isIpp = ["ipp", "ipps", "http", "https"].includes(parsed.scheme);
+  const maybeIpp = isIpp || ["socket", "lpd"].includes(parsed.scheme) || parsed.port === 631;
+  let ipp: NetworkProbe["ipp"] = null;
+  if (maybeIpp) {
+    ipp = await ippProbe(parsed.host, isIpp ? parsed.port : 631, parsed.secure, isIpp ? [parsed.path] : IPP_PATHS);
+  }
+
+  return {
+    label,
+    deviceUri: uri,
+    scheme: parsed.scheme,
+    host: parsed.host,
+    port: parsed.port,
+    tcp,
+    ipp,
+  };
+}
+
+/** Probes every non-USB queue, so network printers are diagnosed too. */
+export async function networkDiagnostics(): Promise<NetworkProbe[]> {
+  const printers = await listPrinters();
+  const targets = printers.filter((printer) => !/^(cuppa-)?usb:/i.test(printer.deviceUri));
+  return Promise.all(targets.map((printer) => probeNetworkTarget(printer.displayName, printer.deviceUri)));
+}
+
+/** Probes an arbitrary address, e.g. one a discovery scan surfaced. */
+export async function probeUri(uri: string, label?: string): Promise<NetworkProbe> {
+  const trimmed = uri.trim();
+  if (!trimmed) throw new Error("A device URI is required");
+  return probeNetworkTarget(label?.trim() || trimmed, trimmed);
 }
 
 export function localQueueName(displayName: string): string {

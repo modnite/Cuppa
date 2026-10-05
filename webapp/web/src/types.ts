@@ -107,3 +107,32 @@ export interface UsbSelfTestResult {
 }
 
 export type Diagnostics = Record<string, string>;
+
+export interface SupplyLevel {
+  name: string;
+  color: string;
+  type: string;
+  level: number;
+}
+
+export interface NetworkProbe {
+  label: string;
+  deviceUri: string;
+  scheme: string;
+  host: string;
+  port: number;
+  tcp: { ok: boolean; ms: number; error: string };
+  ipp: {
+    attempted: boolean;
+    ok: boolean;
+    statusCode: number;
+    path: string;
+    makeAndModel: string;
+    state: number;
+    stateLabel: string;
+    stateReasons: string[];
+    stateMessage: string;
+    supplies: SupplyLevel[];
+    error: string;
+  } | null;
+}

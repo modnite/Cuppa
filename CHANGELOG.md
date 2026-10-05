@@ -12,8 +12,13 @@ Notable changes to Cuppa, newest first. Loosely follows
   Avahi it still runs its own.
 - A **Diagnostics** page in the webapp. It shows the exact device URI of every
   queue, the CUPS error log, USB devices and their driver tree, the PPD options
-  each queue exposes, and the active cupsd configuration, each with a copy
-  button.
+  each queue exposes, the running services, the mDNS/Avahi sockets and the active
+  cupsd configuration, each with a copy button.
+- **Network printer diagnostics.** Every network queue is contacted directly: a
+  TCP reachability check, then a live IPP query for its state, state reasons,
+  model and supply levels. Any discovered or manually entered address can be
+  probed the same way, so wireless printers Cuppa is not yet printing to can be
+  diagnosed too.
 - A one-click **USB self-test**. It sends a diagnostic label straight to a USB
   printer through the stock backend, the paced Cuppa backend and the kernel
   device node, bypassing the scheduler, so a broken queue can be told apart from
@@ -27,6 +32,17 @@ Notable changes to Cuppa, newest first. Loosely follows
   dialect was previously fixed to TSPL in the UI.
 
 ### Fixed
+- **Thermal USB printers never printed.** The paced `cuppa-usb` backend read the
+  device URI from its first argument, but CUPS passes the URI in the `DEVICE_URI`
+  environment variable. The backend matched nothing and exited successfully, so
+  CUPS reported every job as completed while the printer received no data. This
+  is what made the Rollo X1038 look like it had printed but produce nothing.
+- The USB self-test invoked the CUPS backends with the device URI as an
+  argument, so both backend steps exited with a usage message. They now use
+  `DEVICE_URI` exactly as CUPS does, and the self-test also does an unpaced and a
+  paced kernel-device write so the paths can be compared.
+- Diagnostics no longer fail when `lpinfo -v` returns an error, and it now
+  reports the running services and the mDNS/Avahi sockets.
 - The webapp showed only the first printer when several were configured. CUPS
   returns one attributes group per printer and the parser read only the first.
 - The webapp's PCL test page was an empty reset. It now prints a real

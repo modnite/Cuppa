@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import type { Diagnostics as DiagnosticsData, Printer, UsbSelfTestResult } from "../types";
+import type {
+  Device,
+  Diagnostics as DiagnosticsData,
+  NetworkProbe,
+  Printer,
+  SupplyLevel,
+  UsbSelfTestResult,
+} from "../types";
 import { EmptyState, Spinner, copyText } from "../components/ui";
 import {
   CheckIcon,
@@ -8,14 +15,16 @@ import {
   InfoIcon,
   PrinterIcon,
   RefreshIcon,
+  SearchIcon,
   TerminalIcon,
   UsbIcon,
   WarningIcon,
+  WifiIcon,
 } from "../components/Icons";
 
 type Notify = (text: string, kind?: "info" | "success" | "error") => void;
 
-const SECTIONS: Array<{ key: keyof DiagnosticsData | string; label: string; hint: string }> = [
+const SECTIONS: Array<{ key: string; label: string; hint: string }> = [
   { key: "queues", label: "Queues", hint: "lpstat -v — the device URI each queue actually uses." },
   { key: "printers", label: "Printers", hint: "lpstat -p -d — state and default queue." },
   { key: "jobs", label: "Jobs", hint: "lpstat -W all -o — every queued, held and completed job." },
@@ -26,6 +35,8 @@ const SECTIONS: Array<{ key: keyof DiagnosticsData | string; label: string; hint
   { key: "usbDevices", label: "USB devices", hint: "lsusb — everything on the USB bus." },
   { key: "usbTree", label: "USB tree", hint: "lsusb -t — which driver owns each interface." },
   { key: "usbNodes", label: "USB device nodes", hint: "Kernel /dev/bus/usb and /dev/usb nodes." },
+  { key: "services", label: "Services", hint: "Processes running in the container (cupsd, Avahi, ipp-usb, the backend)." },
+  { key: "mdns", label: "mDNS / discovery", hint: "D-Bus and Avahi sockets, and the _ipp._tcp services Avahi can see." },
   { key: "cupsdConf", label: "cupsd.conf", hint: "The active CUPS scheduler configuration." },
   { key: "errorLog", label: "CUPS error log", hint: "The last 200 lines of /var/log/cups/error.log." },
 ];
@@ -50,28 +61,110 @@ function CopyIconButton({ value, tooltip = "Copy" }: { value: string; tooltip?: 
 }
 
 function formatAll(data: DiagnosticsData): string {
-  return SECTIONS.map((section) => {
-    const value = data[section.key] ?? "";
-    return `# ${section.label}\n${value}`;
-  }).join("\n\n");
+  return SECTIONS.map((section) => `# ${section.label}\n${data[section.key] ?? ""}`).join("\n\n");
+}
+
+function SupplyBar({ supply }: { supply: SupplyLevel }) {
+  const known = supply.level >= 0;
+  const pct = Math.max(0, Math.min(100, supply.level));
+  const tone = !known ? "muted" : pct <= 10 ? "bad" : pct <= 25 ? "warn" : "ok";
+  return (
+    <div className="supply">
+      <div className="row between">
+        <span className="small">
+          {supply.name}
+          {supply.color && supply.color !== "none" ? <span className="muted"> · {supply.color}</span> : null}
+        </span>
+        <span className="small muted">{known ? `${supply.level}%` : "unknown"}</span>
+      </div>
+      <div className="supply-bar">
+        <div className={`supply-fill ${tone}`} style={{ width: `${known ? pct : 0}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function ProbeCard({ probe }: { probe: NetworkProbe }) {
+  return (
+    <div className="usb-step">
+      <div className="row between">
+        <div className="printer-body">
+          <div className="printer-name">{probe.label}</div>
+          <div className="printer-origin">{probe.deviceUri}</div>
+        </div>
+        <div className="row" style={{ gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <span className={`pill ${probe.tcp.ok ? "ok" : "bad"}`}>
+            {probe.tcp.ok ? <CheckIcon size={12} /> : <WarningIcon size={12} />}
+            {probe.tcp.ok ? `TCP ${probe.tcp.ms} ms` : "TCP failed"}
+          </span>
+          {probe.ipp ? (
+            <span className={`pill ${probe.ipp.ok ? "ok" : "warn"}`}>
+              {probe.ipp.ok ? `IPP · ${probe.ipp.stateLabel}` : "IPP unavailable"}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      {!probe.tcp.ok && probe.tcp.error ? (
+        <div className="small muted" style={{ marginTop: 4 }}>
+          {probe.tcp.error}
+        </div>
+      ) : null}
+
+      {probe.ipp?.ok ? (
+        <div style={{ marginTop: 8 }}>
+          {probe.ipp.makeAndModel ? <div className="small">{probe.ipp.makeAndModel}</div> : null}
+          {probe.ipp.stateReasons.length > 0 ? (
+            <div className="small muted">{probe.ipp.stateReasons.join(", ")}</div>
+          ) : null}
+          {probe.ipp.stateMessage ? <div className="small muted">{probe.ipp.stateMessage}</div> : null}
+          {probe.ipp.supplies.length > 0 ? (
+            <div className="supplies">
+              {probe.ipp.supplies.map((supply, index) => (
+                <SupplyBar key={index} supply={supply} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : probe.ipp ? (
+        <div className="small muted" style={{ marginTop: 4 }}>
+          IPP: {probe.ipp.error}
+          {probe.ipp.statusCode >= 0 ? ` (status 0x${probe.ipp.statusCode.toString(16)})` : ""}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function Diagnostics({ notify }: { notify: Notify }) {
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
+  const [probes, setProbes] = useState<NetworkProbe[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [testing, setTesting] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, UsbSelfTestResult>>({});
 
+  const [probing, setProbing] = useState<string | null>(null);
+  const [probeResults, setProbeResults] = useState<Record<string, NetworkProbe>>({});
+  const [manualUri, setManualUri] = useState("");
+
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const [diagnostics, list] = await Promise.all([api.diagnostics(), api.printers()]);
+      const [diagnostics, list, network, discovered] = await Promise.all([
+        api.diagnostics(),
+        api.printers(),
+        api.networkDiagnostics().catch(() => [] as NetworkProbe[]),
+        api.discover().catch(() => [] as Device[]),
+      ]);
       setData(diagnostics);
       setPrinters(list);
+      setProbes(network);
+      setDevices(discovered);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load diagnostics");
     } finally {
@@ -100,7 +193,22 @@ export function Diagnostics({ notify }: { notify: Notify }) {
     }
   };
 
+  const probe = async (uri: string, label?: string) => {
+    const key = uri.trim();
+    if (!key) return;
+    setProbing(key);
+    try {
+      const result = await api.probeUri(key, label);
+      setProbeResults((current) => ({ ...current, [key]: result }));
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : "Could not probe the address", "error");
+    } finally {
+      setProbing(null);
+    }
+  };
+
   const usbPrinters = printers.filter((printer) => /^(cuppa-)?usb:/i.test(printer.deviceUri));
+  const manualResult = probeResults[manualUri.trim()];
 
   return (
     <div>
@@ -108,7 +216,7 @@ export function Diagnostics({ notify }: { notify: Notify }) {
         <div>
           <h1 className="page-title">Diagnostics</h1>
           <p className="page-subtitle">
-            What CUPS sees, what the USB bus looks like, and a raw self-test that bypasses the queue.
+            What CUPS sees, what the USB bus and the network look like, and self-tests that bypass the queue.
           </p>
         </div>
         <div className="page-actions">
@@ -122,6 +230,33 @@ export function Diagnostics({ notify }: { notify: Notify }) {
 
       {error ? <div className="pill bad mb">{error}</div> : null}
 
+      {/* ---- Network printers ---- */}
+      <div className="section-title">
+        <WifiIcon size={13} /> Network printers
+      </div>
+      <div className="card pad">
+        <div className="row small muted mb">
+          <InfoIcon size={14} />
+          <span>
+            Each network queue is contacted directly: a TCP reachability check, then a live IPP query for its
+            state and supply levels. This works whether or not Cuppa can print to it.
+          </span>
+        </div>
+
+        {loading && probes.length === 0 ? (
+          <div className="center">
+            <Spinner /> Probing network printers…
+          </div>
+        ) : probes.length === 0 ? (
+          <EmptyState icon={<WifiIcon />} title="No network printers">
+            Add a network printer and it will show up here with its state and supplies.
+          </EmptyState>
+        ) : (
+          probes.map((probe) => <ProbeCard key={probe.deviceUri} probe={probe} />)
+        )}
+      </div>
+
+      {/* ---- USB self-test ---- */}
       <div className="section-title">
         <UsbIcon size={13} /> USB self-test
       </div>
@@ -129,8 +264,8 @@ export function Diagnostics({ notify }: { notify: Notify }) {
         <div className="row small muted mb">
           <InfoIcon size={14} />
           <span>
-            Sends a diagnostic label straight to the printer over USB, without the queue or scheduler.
-            Use it to tell a broken queue apart from a printer that cannot be driven over USB.
+            Sends a diagnostic label straight to the printer over USB, without the queue or scheduler. Use it to
+            tell a broken queue apart from a printer that cannot be driven over USB.
           </span>
         </div>
 
@@ -166,7 +301,7 @@ export function Diagnostics({ notify }: { notify: Notify }) {
                     {result.steps.map((step) => (
                       <div key={step.name} className="usb-step">
                         <div className="row between">
-                          <div className="row">
+                          <div className="row" style={{ flexWrap: "wrap" }}>
                             <span className={`pill ${step.ok ? "ok" : "bad"}`}>
                               {step.ok ? <CheckIcon size={12} /> : <WarningIcon size={12} />}
                               {step.name}
@@ -190,6 +325,76 @@ export function Diagnostics({ notify }: { notify: Notify }) {
         )}
       </div>
 
+      {/* ---- Discovered devices + manual probe ---- */}
+      <div className="section-title">
+        <SearchIcon size={13} /> Discovered on the network
+      </div>
+      <div className="card pad">
+        <div className="row small muted mb">
+          <InfoIcon size={14} />
+          <span>
+            Everything CUPS discovery can see, plus any address you want to probe. Probing does not add or print
+            anything.
+          </span>
+        </div>
+
+        <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>Probe an address</label>
+            <input
+              className="input"
+              placeholder="ipp://192.168.1.50:631/ipp/print"
+              value={manualUri}
+              onChange={(event) => setManualUri(event.target.value)}
+            />
+          </div>
+          <button className="btn btn-primary" disabled={!manualUri.trim() || probing === manualUri.trim()} onClick={() => void probe(manualUri)}>
+            {probing === manualUri.trim() ? <Spinner /> : <SearchIcon size={15} />}
+            Probe
+          </button>
+        </div>
+
+        {manualResult ? (
+          <div className="mt">
+            <ProbeCard probe={manualResult} />
+          </div>
+        ) : null}
+
+        <div className="mt">
+          {devices.length === 0 ? (
+            <div className="small muted">No devices discovered right now.</div>
+          ) : (
+            devices.map((device) => {
+              const result = probeResults[device.uri];
+              return (
+                <div key={device.uri} className="usb-test">
+                  <div className="row between">
+                    <div className="printer-body">
+                      <div className="printer-name">{device.makeAndModel || device.info || device.uri}</div>
+                      <div className="printer-origin">{device.uri}</div>
+                    </div>
+                    <button
+                      className="btn"
+                      disabled={probing === device.uri}
+                      onClick={() => void probe(device.uri, device.makeAndModel || device.info || device.uri)}
+                    >
+                      {probing === device.uri ? <Spinner /> : <SearchIcon size={15} />}
+                      Probe
+                    </button>
+                  </div>
+                  {result ? (
+                    <div className="mt">
+                      <ProbeCard probe={result} />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ---- System ---- */}
       <div className="section-title">
         <TerminalIcon size={13} /> System
       </div>
@@ -202,7 +407,7 @@ export function Diagnostics({ notify }: { notify: Notify }) {
         SECTIONS.map((section) => {
           const value = data[section.key] ?? "";
           return (
-            <div key={String(section.key)} className="card pad diag-section">
+            <div key={section.key} className="card pad diag-section">
               <div className="row between">
                 <div>
                   <div className="setting-title">{section.label}</div>

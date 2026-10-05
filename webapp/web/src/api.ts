@@ -1,4 +1,15 @@
-import type { AuthStatus, Device, Diagnostics, Job, Printer, Settings, Status, ThermalConfig, UsbSelfTestResult } from "./types";
+import type {
+  AuthStatus,
+  Device,
+  Diagnostics,
+  Job,
+  NetworkProbe,
+  Printer,
+  Settings,
+  Status,
+  ThermalConfig,
+  UsbSelfTestResult,
+} from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -102,6 +113,13 @@ export const api = {
   drivers: () => request<{ drivers: Array<{ id: string; name: string }> }>("/api/drivers").then((r) => r.drivers),
 
   diagnostics: () => request<Diagnostics>("/api/diagnostics"),
+  networkDiagnostics: () =>
+    request<{ probes: NetworkProbe[] }>("/api/diagnostics/network").then((r) => r.probes),
+  probeUri: (uri: string, label?: string) =>
+    request<{ probe: NetworkProbe }>("/api/diagnostics/probe", {
+      method: "POST",
+      body: JSON.stringify({ uri, label }),
+    }).then((r) => r.probe),
 
   jobs: (scope: "active" | "history" | "all") =>
     request<{ jobs: Job[] }>(`/api/jobs?scope=${scope}`).then((r) => r.jobs),

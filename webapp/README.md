@@ -168,19 +168,25 @@ printer card.
 The **Diagnostics** page collects everything needed to work out why a printer
 will not print, and lets you copy it with one click:
 
+- **Network printers** are probed live: a TCP reachability check, then an IPP
+  query for the printer's own state, state reasons, model and supply levels
+  (toner/ink/paper). Every network queue is listed, and any discovered or
+  manually entered address can be probed the same way — so a wireless printer
+  Cuppa is not yet printing to can be diagnosed too.
 - The exact device URI behind every queue (`lpstat -v`), so you can see whether a
   thermal USB queue is really on the paced `cuppa-usb://` backend.
 - The last 200 lines of the CUPS error log.
 - USB devices and their driver tree (`lsusb`, `lsusb -t`), and the kernel device
   nodes.
 - The PPD options each queue exposes (`lpoptions -l`).
-- The active `cupsd.conf`.
+- The running services, the mDNS/Avahi sockets, and the active `cupsd.conf`.
 
 For USB printers it also offers a **USB self-test**. This sends a diagnostic
-label directly to the printer three ways — the stock CUPS backend, the paced
-Cuppa backend and a raw kernel-device write — skipping the scheduler and spooler
-entirely. If one path prints and another does not, the problem is the queue or
-the pacing; if none print, the printer is not being driven correctly over USB.
+label directly to the printer several ways — the stock CUPS backend, the paced
+Cuppa backend, and unpaced and paced writes to the kernel device node — skipping
+the scheduler and spooler entirely. If one path prints and another does not, the
+problem is the queue or the pacing; if none print, the printer is not being
+driven correctly over USB.
 
 ## Drivers
 

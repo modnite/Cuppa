@@ -5,19 +5,22 @@
  * cuppa-usb — a CUPS backend that paces USB bulk writes for thermal label
  * printers (the Rollo X1038 in particular).
  *
- * The Rollo's firmware ACKs a large, unpaced bulk write and then silently
- * drops it, so the print head never fires even though CUPS reports the job as
- * completed. The Android app works around this by sending 1 KiB at a time with
- * a 10 ms pause; this backend does the same.
+ * CUPS invokes a backend as:  backend job-id user title copies options [file]
+ * and passes the device URI in the DEVICE_URI environment variable. An earlier
+ * version read the URI from argv[0]; CUPS never puts it there, so the backend
+ * matched nothing, exited 0 and sent no bytes — CUPS then reported the job as
+ * "completed" even though the printer never saw it. This reads DEVICE_URI.
  *
- * It is installed as /usr/lib/cups/backend/cuppa-usb, so a queue created with
- * a `cuppa-usb://...` device URI routes through here. The URI is rewritten to
- * `usb://...` and the real CUPS USB backend is run as a child: because we only
- * feed the child 1 KiB at a time, it can only write 1 KiB at a time.
+ * The URI is rewritten from `cuppa-usb://...` to `usb://...` and the real CUPS
+ * USB backend is run as a child: because we only feed the child 1 KiB at a
+ * time, it can only write 1 KiB at a time. The Rollo's firmware ACKs a large,
+ * unpaced bulk write and then silently drops it, so the pacing is what makes
+ * the print head fire.
  */
 
 const { spawn } = require("node:child_process");
 const { once } = require("node:events");
+const fs = require("node:fs");
 
 const REAL_BACKEND = process.env.CUPPA_USB_BACKEND || "/usr/lib/cups/backend/usb";
 const CHUNK_SIZE = 1024;
@@ -29,20 +32,32 @@ const START_DELAY_MS = Number(process.env.CUPPA_USB_START_DELAY_MS ?? 500);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const argv = process.argv.slice(2);
-const uri = argv[0] || "";
+// CUPS passes job-id, user, title, copies, options and an optional file path.
+const jobArgs = process.argv.slice(2);
+const uri = process.env.DEVICE_URI || "";
 
-// Device discovery (no URI, or `-l`) and any non-cuppa-usb job is not ours:
-// stay silent so the real `usb` backend remains the one that lists devices.
+// Device discovery (no DEVICE_URI, or `-l`) and any non-cuppa-usb job is not
+// ours: stay silent so the real `usb` backend remains the one that lists
+// devices.
 if (!uri || uri.startsWith("-") || !/^cuppa-usb:\/\//i.test(uri)) {
   process.exit(0);
 }
 
 const realUri = uri.replace(/^cuppa-usb:/i, "usb:");
 
-const child = spawn(REAL_BACKEND, [realUri, ...argv.slice(1)], {
-  // fd 3 (the CUPS back channel) is inherited so the real backend keeps working.
-  stdio: ["pipe", "inherit", "inherit", "inherit"],
+// fd 3 is CUPS' back channel. Inherit it when CUPS opened it, otherwise ignore
+// it so the backend still runs outside cupsd (e.g. from the diagnostics page).
+let backChannel = "ignore";
+try {
+  fs.fstatSync(3);
+  backChannel = "inherit";
+} catch {
+  // No back channel available.
+}
+
+const child = spawn(REAL_BACKEND, jobArgs, {
+  stdio: ["pipe", "inherit", "inherit", backChannel],
+  env: { ...process.env, DEVICE_URI: realUri },
 });
 
 let finished = false;
