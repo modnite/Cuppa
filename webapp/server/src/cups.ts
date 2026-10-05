@@ -659,7 +659,7 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
       text("sh", ["-c", "ls -l /dev/usb/lp* /dev/bus/usb/*/* 2>/dev/null || true"]),
       text("sh", [
         "-c",
-        "for p in $(lpstat -v 2>/dev/null | sed -n 's/.*: //p'); do echo \"# $p\"; lpoptions -p \"$p\" -l 2>/dev/null | head -80; echo; done",
+        "for p in $(lpstat -v 2>/dev/null | sed -n 's/^device for \\(.*\\): .*/\\1/p'); do echo \"# $p\"; lpoptions -p \"$p\" -l 2>/dev/null | head -80; echo; done",
       ]),
       text("sh", ["-c", "grep -vE '^\\s*#|^\\s*$' /etc/cups/cupsd.conf | head -80"]),
     ]);
