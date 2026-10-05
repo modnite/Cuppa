@@ -4,6 +4,7 @@ import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts, type ToastMessage } from "./components/ui";
 import { Dashboard } from "./pages/Dashboard";
+import { Diagnostics } from "./pages/Diagnostics";
 import { Jobs } from "./pages/Jobs";
 import { Printers } from "./pages/Printers";
 import { Settings } from "./pages/Settings";
@@ -124,6 +125,7 @@ export default function App() {
           ) : null}
           {page === "printers" ? <Printers notify={notify} /> : null}
           {page === "jobs" ? <Jobs notify={notify} /> : null}
+          {page === "diagnostics" ? <Diagnostics notify={notify} /> : null}
           {page === "settings" ? (
             <Settings
               status={status}

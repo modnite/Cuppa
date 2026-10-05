@@ -10,10 +10,27 @@ Notable changes to Cuppa, newest first. Loosely follows
 - Cuppa now uses the host's Avahi when the NAS already runs one (OpenMediaVault,
   Synology), so printer discovery and advertising work there; on a host with no
   Avahi it still runs its own.
+- A **Diagnostics** page in the webapp. It shows the exact device URI of every
+  queue, the CUPS error log, USB devices and their driver tree, the PPD options
+  each queue exposes, and the active cupsd configuration, each with a copy
+  button.
+- A one-click **USB self-test**. It sends a diagnostic label straight to a USB
+  printer through the stock backend, the paced Cuppa backend and the kernel
+  device node, bypassing the scheduler, so a broken queue can be told apart from
+  a printer that cannot be driven over USB at all.
+- The webapp bundles the OpenPrinting driver set — Gutenprint, hpcups, SpliX,
+  Epson ESC/P-R, foo2zjs, P-touch, DYMO, C2ESP, PXLJR, SAG-GDI, OKI and the
+  foomatic PPD collection — alongside brlaser, so far more USB and network
+  printers can be driven locally instead of falling back to a raw queue.
+- All five thermal command languages (TSPL, ZPL II, EPL2, ESC/POS, PCL 5) can
+  now be chosen in the webapp when adding or editing a thermal printer; the
+  dialect was previously fixed to TSPL in the UI.
 
 ### Fixed
 - The webapp showed only the first printer when several were configured. CUPS
   returns one attributes group per printer and the parser read only the first.
+- The webapp's PCL test page was an empty reset. It now prints a real
+  diagnostic page using PCL's built-in Courier font.
 
 ## [0.8.0] - 2026-10-04
 

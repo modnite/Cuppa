@@ -15,7 +15,7 @@ export function generateThermalTestLabel(config: ThermalConfig, queue: string): 
     case "escpos":
       return EscPosDriver.generateTestReceipt(queue, 48);
     case "pcl":
-      return new PclDriver(config.dpi).reset().build();
+      return PclDriver.generateTestLabel(queue, "Cuppa Web");
     case "tspl":
     default:
       return generateTsplTestLabel(queue, "CUPS", "Cuppa Web");

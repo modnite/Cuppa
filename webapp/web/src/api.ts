@@ -1,4 +1,4 @@
-import type { AuthStatus, Device, Job, Printer, Settings, Status, ThermalConfig } from "./types";
+import type { AuthStatus, Device, Diagnostics, Job, Printer, Settings, Status, ThermalConfig, UsbSelfTestResult } from "./types";
 
 export class ApiError extends Error {
   status: number;
@@ -76,6 +76,8 @@ export const api = {
     request<{ ok: boolean }>(`/api/printers/${encodeURIComponent(queue)}/default`, { method: "POST" }),
   testPrint: (queue: string) =>
     request<{ ok: boolean }>(`/api/printers/${encodeURIComponent(queue)}/test`, { method: "POST" }),
+  usbSelfTest: (queue: string) =>
+    request<UsbSelfTestResult>(`/api/printers/${encodeURIComponent(queue)}/usb-selftest`, { method: "POST" }),
   setEnabled: (queue: string, enabled: boolean) =>
     request<{ ok: boolean }>(`/api/printers/${encodeURIComponent(queue)}/enable`, {
       method: "POST",
@@ -98,6 +100,8 @@ export const api = {
   discover: () => request<{ devices: Device[] }>("/api/discover").then((r) => r.devices),
 
   drivers: () => request<{ drivers: Array<{ id: string; name: string }> }>("/api/drivers").then((r) => r.drivers),
+
+  diagnostics: () => request<Diagnostics>("/api/diagnostics"),
 
   jobs: (scope: "active" | "history" | "all") =>
     request<{ jobs: Job[] }>(`/api/jobs?scope=${scope}`).then((r) => r.jobs),

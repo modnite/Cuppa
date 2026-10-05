@@ -25,6 +25,7 @@ import {
   setShared,
   testPrint,
   updateThermalSettings,
+  usbSelfTest,
 } from "./cups.js";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
@@ -190,6 +191,15 @@ export function registerRoutes(app: FastifyInstance): void {
     try {
       await testPrint(param(request, "queue"));
       return { ok: true };
+    } catch (error) {
+      reply.code(400);
+      return { error: errorMessage(error) };
+    }
+  });
+
+  app.post("/api/printers/:queue/usb-selftest", async (request, reply) => {
+    try {
+      return await usbSelfTest(param(request, "queue"));
     } catch (error) {
       reply.code(400);
       return { error: errorMessage(error) };

@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import type { Device, Printer, ThermalConfig } from "../types";
 import { InfoIcon, PlusIcon, PrinterIcon, RefreshIcon, SearchIcon, UsbIcon, WifiIcon } from "./Icons";
 import { Modal, Segmented, Spinner, Toggle } from "./ui";
+import { THERMAL_DIALECTS } from "../thermal";
 
 type Tab = "discovered" | "manual";
 type Driver = string;
@@ -67,6 +68,7 @@ export function AddPrinterDialog({
   const [modelFilter, setModelFilter] = useState("");
 
   const [thermal, setThermal] = useState(false);
+  const [dialect, setDialect] = useState<ThermalConfig["dialect"]>("tspl");
   const [labelSize, setLabelSize] = useState<LabelSize>("4x6");
   const [density, setDensity] = useState(8);
   const [speed, setSpeed] = useState(5);
@@ -130,7 +132,7 @@ export function AddPrinterDialog({
         shared: true,
         thermal: thermal
           ? {
-              dialect: "tspl",
+              dialect,
               ...LABEL_SIZES[labelSize],
               density,
               speed,
@@ -400,8 +402,16 @@ export function AddPrinterDialog({
               <div className="grid cols-2">
                 <div className="field">
                   <label>Dialect</label>
-                  <select className="select" value="tspl" disabled>
-                    <option value="tspl">TSPL / Rollo X1038</option>
+                  <select
+                    className="select"
+                    value={dialect}
+                    onChange={(event) => setDialect(event.target.value as ThermalConfig["dialect"])}
+                  >
+                    {THERMAL_DIALECTS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="field">

@@ -114,7 +114,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
  * `execCommand("copy")` path still works there with a user gesture, so fall back
  * to a hidden textarea.
  */
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
   if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(text);

@@ -228,6 +228,22 @@ test("PclDriver fromBitmap emits raster framing and resets", () => {
   assert.equal(bytes[bytes.length - 1], "E".charCodeAt(0));
 });
 
+test("PclDriver generateTestLabel renders a real text page", () => {
+  const bytes = PclDriver.generateTestLabel("HP LaserJet", "Cuppa Web");
+  assert.ok(bytes.length > 0);
+
+  const text = bytes.toString("ascii");
+  assert.ok(text.includes("CUPPA PRINT SERVER"));
+  assert.ok(text.includes("HP LaserJet"));
+  assert.ok(text.includes("PCL 5 raster"));
+  assert.ok(text.includes("Cuppa Web"));
+  // Selects the built-in Courier typeface and ejects a page.
+  assert.ok(text.includes("b4099T"));
+  assert.ok(text.includes("\f"));
+  assert.equal(bytes[0], 0x1b);
+  assert.equal(bytes[1], "E".charCodeAt(0));
+});
+
 test("TsplDriver basic commands", () => {
   const driver = new TsplBuilder(101.6, 152.4)
     .setDensity(8)

@@ -1,4 +1,4 @@
-export type Page = "dashboard" | "printers" | "jobs" | "settings";
+export type Page = "dashboard" | "printers" | "jobs" | "diagnostics" | "settings";
 
 export interface Status {
   ok: boolean;
@@ -18,8 +18,10 @@ export interface Status {
   uptimeSeconds: number;
 }
 
+export type ThermalDialect = "tspl" | "zpl" | "epl" | "escpos" | "pcl";
+
 export interface ThermalConfig {
-  dialect: "tspl";
+  dialect: ThermalDialect;
   labelWidthMm: number;
   labelHeightMm: number;
   dpi: number;
@@ -85,3 +87,23 @@ export interface AuthStatus {
   required: boolean;
   authenticated: boolean;
 }
+
+export interface UsbSelfTestStep {
+  name: string;
+  detail: string;
+  command: string;
+  code: number;
+  durationMs: number;
+  ok: boolean;
+  output: string;
+}
+
+export interface UsbSelfTestResult {
+  queue: string;
+  deviceUri: string;
+  usbUri: string;
+  bytes: number;
+  steps: UsbSelfTestStep[];
+}
+
+export type Diagnostics = Record<string, string>;

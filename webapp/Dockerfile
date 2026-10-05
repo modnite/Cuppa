@@ -44,11 +44,27 @@ RUN apt-get update \
         usbutils \
         ghostscript \
         poppler-utils \
-        printer-driver-brlaser \
         supervisor \
         tini \
         ca-certificates \
         curl \
+        foomatic-db-compressed-ppds \
+        printer-driver-brlaser \
+        printer-driver-c2esp \
+        printer-driver-cups-pdf \
+        printer-driver-dymo \
+        printer-driver-escpr \
+        printer-driver-foo2zjs \
+        printer-driver-gutenprint \
+        printer-driver-hpcups \
+        printer-driver-indexbraille \
+        printer-driver-m2300w \
+        printer-driver-min12xxw \
+        printer-driver-oki \
+        printer-driver-ptouch \
+        printer-driver-pxljr \
+        printer-driver-sag-gdi \
+        printer-driver-splix \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

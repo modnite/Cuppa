@@ -1,10 +1,11 @@
 import type { Page, Status } from "../types";
-import { GaugeIcon, JobsIcon, PrinterIcon, SettingsIcon } from "./Icons";
+import { GaugeIcon, JobsIcon, PrinterIcon, SettingsIcon, TerminalIcon } from "./Icons";
 
 const NAV: Array<{ page: Page; label: string; icon: typeof GaugeIcon }> = [
   { page: "dashboard", label: "Dashboard", icon: GaugeIcon },
   { page: "printers", label: "Printers", icon: PrinterIcon },
   { page: "jobs", label: "Jobs", icon: JobsIcon },
+  { page: "diagnostics", label: "Diagnostics", icon: TerminalIcon },
   { page: "settings", label: "Settings", icon: SettingsIcon },
 ];
 

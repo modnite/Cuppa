@@ -7,6 +7,18 @@ import { rasterize, type DitherMode, type GrayImage } from "../raster.js";
  * compatibility mode by the overwhelming majority of laser/inkjet printers.
  */
 
+function timestamp(): string {
+  const d = new Date();
+  const p = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(
+    d.getMinutes()
+  )}:${p(d.getSeconds())}`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return value < min ? min : value > max ? max : value;
+}
+
 export class PclDriver {
   private chunks: Buffer[] = [];
   private readonly esc = 0x1b;
@@ -14,6 +26,21 @@ export class PclDriver {
   constructor(readonly dpi = 300) {
     // Printer reset (Esc E) puts the printer into a known default state.
     this.chunks.push(Buffer.from([this.esc, "E".charCodeAt(0)]));
+  }
+
+  /**
+   * Select a built-in PCL 5 font. 4099 is Courier, which every PCL printer
+   * ships; the pitch is fixed so columns line up on the test page.
+   */
+  selectFont(sizePt = 12, typeface = 4099): this {
+    this.writeEscCommand(`(s0p${clamp(Math.round(sizePt), 4, 72)}h0s0b${typeface}T`);
+    return this;
+  }
+
+  /** Write a line of text followed by CRLF, advancing to the next line. */
+  printLine(text = ""): this {
+    this.chunks.push(Buffer.from(`${text}\r\n`, "ascii"));
+    return this;
   }
 
   /** Set the page orientation: landscape (1) or portrait (0). */
@@ -83,6 +110,32 @@ export class PclDriver {
       .setOrientation(false)
       .setCursorPosition(0, 0)
       .printBitmap(image, ditherMode)
+      .formFeed()
+      .reset()
+      .build();
+  }
+
+  /** A readable text-only diagnostic page using PCL's built-in Courier font. */
+  static generateTestLabel(printerName = "PCL Printer", transport = "Cuppa Web"): Buffer {
+    const dateStr = timestamp();
+    const rule = "=".repeat(56);
+    const thin = "-".repeat(56);
+
+    return new PclDriver(300)
+      .selectFont(20)
+      .printLine("CUPPA PRINT SERVER")
+      .selectFont(11)
+      .printLine("Generic PCL 5 diagnostic page")
+      .printLine(rule)
+      .printLine(`Printer:    ${printerName}`)
+      .printLine("Driver:     PCL 5 raster / built-in Courier")
+      .printLine(`Transport:  ${transport}`)
+      .printLine(`Timestamp:  ${dateStr}`)
+      .printLine(thin)
+      .printLine("If you can read this, the printer accepts PCL 5 and")
+      .printLine("is shared through Cuppa to macOS, iOS and Android.")
+      .printLine(thin)
+      .printLine("Cuppa Native Print Subsystem")
       .formFeed()
       .reset()
       .build();

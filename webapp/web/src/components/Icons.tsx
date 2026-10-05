@@ -205,3 +205,10 @@ export const ShieldIcon = makeIcon(
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
   </>
 );
+
+export const TerminalIcon = makeIcon(
+  <>
+    <path d="m4 17 6-6-6-6" />
+    <path d="M12 19h8" />
+  </>
+);

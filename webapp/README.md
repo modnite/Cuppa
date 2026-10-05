@@ -163,6 +163,33 @@ Each queue gets a generated PPD that routes PDF and PostScript through the
 (part of the persistent volume). Edit them any time with the gear button on the
 printer card.
 
+## Diagnostics
+
+The **Diagnostics** page collects everything needed to work out why a printer
+will not print, and lets you copy it with one click:
+
+- The exact device URI behind every queue (`lpstat -v`), so you can see whether a
+  thermal USB queue is really on the paced `cuppa-usb://` backend.
+- The last 200 lines of the CUPS error log.
+- USB devices and their driver tree (`lsusb`, `lsusb -t`), and the kernel device
+  nodes.
+- The PPD options each queue exposes (`lpoptions -l`).
+- The active `cupsd.conf`.
+
+For USB printers it also offers a **USB self-test**. This sends a diagnostic
+label directly to the printer three ways — the stock CUPS backend, the paced
+Cuppa backend and a raw kernel-device write — skipping the scheduler and spooler
+entirely. If one path prints and another does not, the problem is the queue or
+the pacing; if none print, the printer is not being driven correctly over USB.
+
+## Drivers
+
+Cuppa ships the broad OpenPrinting driver set so most printers can be driven
+locally without a vendor app: Gutenprint, hpcups (HP), SpliX (Samsung/Xerox),
+Epson ESC/P-R, foo2zjs, P-touch, DYMO, C2ESP, PXLJR, SAG-GDI, OKI, brlaser and
+the foomatic PPD collection. IPP Everywhere (driverless) is still preferred for
+any printer that speaks it; the specific-driver picker is there for the rest.
+
 ## Building the image locally
 
 ```sh

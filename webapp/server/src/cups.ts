@@ -1,9 +1,9 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { ENV } from "./env.js";
-import { run, runOrThrow } from "./exec.js";
+import { run, runOrThrow, runWithInput } from "./exec.js";
 import { log } from "./logger.js";
 import {
   IPP_OP,
@@ -646,15 +646,163 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
       return "(no /var/log/cups/error_log)";
     }
   })();
-  const [devices, queues, printers, jobs, backends, thermal] = await Promise.all([
-    text("lpinfo", ["-v"]),
-    text("lpstat", ["-v"]),
-    text("lpstat", ["-p", "-d"]),
-    text("lpstat", ["-W", "all", "-o"]),
-    text("ls", ["-l", "/usr/lib/cups/backend"]),
-    Promise.resolve(listThermalQueues().join("\n")),
-  ]);
-  return { devices, queues, printers, jobs, backends, thermal, errorLog };
+  const [devices, queues, printers, jobs, backends, thermal, usbDevices, usbTree, usbNodes, printerOptions, config] =
+    await Promise.all([
+      text("lpinfo", ["-v"]),
+      text("lpstat", ["-v"]),
+      text("lpstat", ["-p", "-d"]),
+      text("lpstat", ["-W", "all", "-o"]),
+      text("ls", ["-l", "/usr/lib/cups/backend"]),
+      Promise.resolve(listThermalQueues().join("\n")),
+      text("lsusb", []),
+      text("lsusb", ["-t"]),
+      text("sh", ["-c", "ls -l /dev/usb/lp* /dev/bus/usb/*/* 2>/dev/null || true"]),
+      text("sh", [
+        "-c",
+        "for p in $(lpstat -v 2>/dev/null | sed -n 's/.*: //p'); do echo \"# $p\"; lpoptions -p \"$p\" -l 2>/dev/null | head -80; echo; done",
+      ]),
+      text("sh", ["-c", "grep -vE '^\\s*#|^\\s*$' /etc/cups/cupsd.conf | head -80"]),
+    ]);
+  return {
+    devices,
+    queues,
+    printers,
+    jobs,
+    backends,
+    thermal,
+    usbDevices,
+    usbTree,
+    usbNodes,
+    printerOptions,
+    cupsdConf: config,
+    errorLog,
+  };
+}
+
+const USB_BACKEND = process.env.CUPPA_USB_BACKEND || "/usr/lib/cups/backend/usb";
+const PACED_USB_BACKEND = process.env.CUPPA_PACED_USB_BACKEND || "/usr/lib/cups/backend/cuppa-usb";
+
+export interface UsbSelfTestStep {
+  name: string;
+  detail: string;
+  command: string;
+  code: number;
+  durationMs: number;
+  ok: boolean;
+  output: string;
+}
+
+export interface UsbSelfTestResult {
+  queue: string;
+  deviceUri: string;
+  usbUri: string;
+  bytes: number;
+  steps: UsbSelfTestStep[];
+}
+
+/** The plain `usb://` URI behind a queue, or "" when the queue is not USB. */
+function usbDeviceUri(deviceUri: string): string {
+  if (/^usb:\/\//i.test(deviceUri)) return deviceUri;
+  if (/^cuppa-usb:\/\//i.test(deviceUri)) return deviceUri.replace(/^cuppa-usb:/i, "usb:");
+  return "";
+}
+
+/** First kernel usblp character device, if the printer is bound to one. */
+function findUsbPrintDevice(): string | null {
+  try {
+    const entries = readdirSync("/dev/usb")
+      .filter((name) => /^lp\d+$/.test(name))
+      .sort();
+    return entries.length > 0 ? `/dev/usb/${entries[0]}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sends a diagnostic label straight to a USB printer, bypassing cupsd.
+ *
+ * This is the fastest way to tell apart a broken queue from a printer that
+ * cannot be driven over USB at all: the stock backend, the paced Cuppa backend
+ * and a raw kernel-device write are each tried and reported separately.
+ */
+export async function usbSelfTest(queue: string): Promise<UsbSelfTestResult> {
+  const printer = (await listPrinters()).find((candidate) => candidate.queue === queue);
+  if (!printer) throw new Error(`No printer named ${queue}`);
+  const usbUri = usbDeviceUri(printer.deviceUri);
+  if (!usbUri) {
+    throw new Error("This printer is not on a USB device URI, so a USB self-test does not apply.");
+  }
+
+  const config = loadThermalConfig(queue) ?? defaultThermalConfig();
+  const payload = generateThermalTestLabel(config, queue);
+  const steps: UsbSelfTestStep[] = [];
+
+  const runBackend = async (
+    name: string,
+    detail: string,
+    command: string,
+    uri: string
+  ): Promise<UsbSelfTestStep> => {
+    const started = Date.now();
+    const result = await runWithInput(
+      command,
+      [uri, "cuppa-selftest", "root", "Cuppa USB self-test", "1", "cuppa-test=1", "-"],
+      payload,
+      { timeoutMs: 30_000, env: { DEVICE_URI: uri } }
+    );
+    return {
+      name,
+      detail,
+      command: `${command} ${uri}`,
+      code: result.code,
+      durationMs: Date.now() - started,
+      ok: result.code === 0,
+      output: (result.stdout + result.stderr).trim(),
+    };
+  };
+
+  steps.push(
+    await runBackend(
+      "Direct USB backend",
+      "Runs the stock CUPS USB backend directly, skipping the scheduler and spooler.",
+      USB_BACKEND,
+      usbUri
+    )
+  );
+  steps.push(
+    await runBackend(
+      "Paced Cuppa USB backend",
+      "Runs the 1 KiB / 10 ms backend that thermal queues use.",
+      PACED_USB_BACKEND,
+      `cuppa-usb://${usbUri.replace(/^usb:\/\//i, "")}`
+    )
+  );
+
+  const device = findUsbPrintDevice();
+  if (device) {
+    const started = Date.now();
+    let ok = true;
+    let output = `Wrote ${payload.length} bytes to ${device}`;
+    try {
+      writeFileSync(device, payload);
+    } catch (error) {
+      ok = false;
+      output = error instanceof Error ? error.message : String(error);
+    }
+    steps.push({
+      name: "Kernel device write",
+      detail: `Writes straight to ${device}, bypassing libusb and CUPS entirely.`,
+      command: `write ${payload.length} bytes -> ${device}`,
+      code: ok ? 0 : 1,
+      durationMs: Date.now() - started,
+      ok,
+      output,
+    });
+  }
+
+  log.info(`USB self-test for ${queue}: ${steps.map((step) => `${step.name}=${step.ok ? "ok" : "fail"}`).join(", ")}`);
+  return { queue, deviceUri: printer.deviceUri, usbUri, bytes: payload.length, steps };
 }
 
 export function localQueueName(displayName: string): string {

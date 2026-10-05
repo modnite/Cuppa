@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, ApiError } from "../api";
 import type { Printer, ThermalConfig } from "../types";
 import { Modal, Spinner, Toggle } from "./ui";
+import { THERMAL_DIALECTS } from "../thermal";
 
 type LabelSize = "4x6" | "4x4";
 
@@ -26,6 +27,7 @@ export function ThermalSettingsDialog({
   notify: (text: string, kind?: "info" | "success" | "error") => void;
 }) {
   const thermal = printer.thermal;
+  const [dialect, setDialect] = useState<ThermalConfig["dialect"]>(thermal?.dialect ?? "tspl");
   const [labelSize, setLabelSize] = useState<LabelSize>(() => (thermal ? labelSizeFrom(thermal) : "4x6"));
   const [density, setDensity] = useState(thermal?.density ?? 8);
   const [speed, setSpeed] = useState(thermal?.speed ?? 5);
@@ -41,6 +43,7 @@ export function ThermalSettingsDialog({
     setError("");
     try {
       await api.updateThermal(printer.queue, {
+        dialect,
         ...LABEL_SIZES[labelSize],
         density,
         speed,
@@ -79,8 +82,16 @@ export function ThermalSettingsDialog({
       <div className="grid cols-2">
         <div className="field">
           <label>Dialect</label>
-          <select className="select" value="tspl" disabled>
-            <option value="tspl">TSPL / Rollo X1038</option>
+          <select
+            className="select"
+            value={dialect}
+            onChange={(event) => setDialect(event.target.value as ThermalConfig["dialect"])}
+          >
+            {THERMAL_DIALECTS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">
