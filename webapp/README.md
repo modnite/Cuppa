@@ -116,9 +116,13 @@ everything.
 Network/AirPrint printers need nothing special. USB printers work too — the
 compose file already passes through `/dev/bus/usb`, so CUPS sees them:
 
-- **Thermal / label printers** (e.g. the Rollo X1038): add as a
-  **Thermal (TSPL)** printer. Cuppa encodes the label itself and the CUPS USB
-  backend writes it, exactly like the Android app.
+- **Thermal / label printers** (e.g. the Rollo X1038): add as a thermal printer
+  and pick the command language. Cuppa encodes the label itself and writes it
+  through a paced backend. These printers (and the Xprinter/Munbyn/Phomemo
+  rebrands) must be driven through the kernel `usblp` device, not libusb: CUPS'
+  stock USB backend detaches `usblp`, after which the printer ACKs the transfer,
+  prints nothing and wedges. Cuppa writes to `/dev/usb/lpN` directly for exactly
+  this reason.
 - **USB IPP / AirPrint printers** (e.g. HP DeskJet): the image runs `ipp-usb`,
   so they appear like a network IPP printer and use IPP Everywhere.
 
@@ -182,11 +186,10 @@ will not print, and lets you copy it with one click:
 - The running services, the mDNS/Avahi sockets, and the active `cupsd.conf`.
 
 For USB printers it also offers a **USB self-test**. This sends a diagnostic
-label directly to the printer several ways — the stock CUPS backend, the paced
-Cuppa backend, and unpaced and paced writes to the kernel device node — skipping
-the scheduler and spooler entirely. If one path prints and another does not, the
-problem is the queue or the pacing; if none print, the printer is not being
-driven correctly over USB.
+label directly to the printer without the scheduler or spooler: a paced and an
+unpaced write to the kernel `usblp` device, then the queue's real backend end to
+end. The kernel path runs first on purpose — the libusb backend wedges these
+printers, so it must never run before the path that actually prints.
 
 ## Drivers
 
@@ -195,6 +198,11 @@ locally without a vendor app: Gutenprint, hpcups (HP), SpliX (Samsung/Xerox),
 Epson ESC/P-R, foo2zjs, P-touch, DYMO, C2ESP, PXLJR, SAG-GDI, OKI, brlaser and
 the foomatic PPD collection. IPP Everywhere (driverless) is still preferred for
 any printer that speaks it; the specific-driver picker is there for the rest.
+
+If a printer is missing from the list — or only a near-identical model is listed
+— you can **upload its PPD** when adding it, or install one on an existing queue
+from the printer card. A PPD from the vendor, or from a compatible model, is
+usually all that is needed.
 
 ## Building the image locally
 

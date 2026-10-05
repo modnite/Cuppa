@@ -19,6 +19,12 @@ Notable changes to Cuppa, newest first. Loosely follows
   model and supply levels. Any discovered or manually entered address can be
   probed the same way, so wireless printers Cuppa is not yet printing to can be
   diagnosed too.
+- Network discovery also browses mDNS directly with `avahi-browse`. That works
+  when the container borrows the host's Avahi even though CUPS' own
+  dnssd/driverless backend does not, so IPP printers CUPS could not see (a
+  Brother MFC-L2717DW, for example) now appear with a direct IPP address.
+- A printer can be added with a **user-supplied PPD**, or an existing queue can
+  have one installed, instead of choosing from the driver list.
 - A one-click **USB self-test**. It sends a diagnostic label straight to a USB
   printer through the stock backend, the paced Cuppa backend and the kernel
   device node, bypassing the scheduler, so a broken queue can be told apart from
@@ -32,6 +38,19 @@ Notable changes to Cuppa, newest first. Loosely follows
   dialect was previously fixed to TSPL in the UI.
 
 ### Fixed
+- **Thermal USB label printers now print.** CUPS' stock USB backend uses libusb,
+  which detaches the kernel `usblp` driver. The printer — the Rollo X1038 and
+  the Xprinter/Munbyn/Phomemo rebrands, IEEE-1284 id `CMD:XPP,XL` — then ACKs
+  the transfer, prints nothing and wedges. The `cuppa-usb` backend now writes
+  the job straight to the kernel `/dev/usb/lpN` node in 1 KiB chunks, and only
+  falls back to libusb when no such node exists.
+- The USB self-test ran the libusb backend before the kernel writes, which
+  wedged the printer and left the kernel writes with nothing to print. It now
+  runs the kernel path first and then exercises the queue's real backend.
+- The network probe treated IPP status `0x0001` (`successful-ok-ignored-or-
+  substituted-attributes`) as a failure, so printers that answer with it were
+  reported as "IPP unavailable". Every successful status code (below `0x0100`)
+  is now accepted.
 - **Thermal USB printers never printed.** The paced `cuppa-usb` backend read the
   device URI from its first argument, but CUPS passes the URI in the `DEVICE_URI`
   environment variable. The backend matched nothing and exited successfully, so

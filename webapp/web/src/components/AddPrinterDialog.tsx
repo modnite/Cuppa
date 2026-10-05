@@ -38,6 +38,20 @@ function recommendedDriver(uri: string): string {
   return "Raw (no conversion)";
 }
 
+/** Reads a file as base64 (the data URL prefix is stripped). */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read the file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function AddPrinterDialog({
   existing,
   onClose,
@@ -62,6 +76,7 @@ export function AddPrinterDialog({
   const [driver, setDriver] = useState<Driver>("auto");
   const [pickMode, setPickMode] = useState(false);
   const [selectedModel, setSelectedModel] = useState<{ id: string; name: string } | null>(null);
+  const [ppdFile, setPpdFile] = useState<File | null>(null);
   const [models, setModels] = useState<Array<{ id: string; name: string }>>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -120,14 +135,20 @@ export function AddPrinterDialog({
       setError("Choose a device or enter a URI first.");
       return;
     }
+    if (!pickMode && driver === "__ppd__" && !ppdFile) {
+      setError("Choose a PPD file to upload.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
+      const ppdBase64 =
+        !pickMode && driver === "__ppd__" && ppdFile ? await fileToBase64(ppdFile) : undefined;
       await api.addPrinter({
         deviceUri: activeUri,
         displayName: activeName.trim() || "Cuppa Printer",
         location: location.trim(),
-        driver: pickMode ? selectedModel?.id ?? "auto" : driver,
+        driver: pickMode ? selectedModel?.id ?? "auto" : driver === "__ppd__" ? "auto" : driver,
         makeAndModel: tab === "discovered" ? selected?.makeAndModel : undefined,
         shared: true,
         thermal: thermal
@@ -140,6 +161,7 @@ export function AddPrinterDialog({
               invertPolarity,
             }
           : null,
+        ppdBase64,
       });
       notify(`Added “${activeName.trim() || "Cuppa Printer"}”`, "success");
       onAdded();
@@ -333,6 +355,7 @@ export function AddPrinterDialog({
                 <option value="everywhere">IPP Everywhere / AirPrint</option>
                 <option value="raw">Raw (pass-through)</option>
                 <option value="__pick__">Specific driver…</option>
+                <option value="__ppd__">Upload a PPD file…</option>
               </select>
             </div>
           </div>
@@ -378,6 +401,21 @@ export function AddPrinterDialog({
                   brlaser/Brother entry.
                 </span>
               )}
+            </div>
+          ) : null}
+          {!pickMode && driver === "__ppd__" ? (
+            <div className="field mt">
+              <label>PPD file</label>
+              <input
+                className="input"
+                type="file"
+                accept=".ppd,.gz,application/vnd.cups-ppd"
+                onChange={(event) => setPpdFile(event.target.files?.[0] ?? null)}
+              />
+              <span className="hint">
+                Upload the printer's own PPD, or a compatible model's. Cuppa installs it directly
+                instead of picking from the driver list.
+              </span>
             </div>
           ) : null}
           <div className="row small muted">

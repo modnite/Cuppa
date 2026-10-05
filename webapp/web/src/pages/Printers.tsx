@@ -15,6 +15,7 @@ import {
   SettingsIcon,
   StarIcon,
   TrashIcon,
+  UploadIcon,
   UsbIcon,
 } from "../components/Icons";
 
@@ -30,6 +31,8 @@ export function Printers({ notify }: { notify: Notify }) {
   const [busyQueue, setBusyQueue] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadTarget = useRef<Printer | null>(null);
+  const ppdInput = useRef<HTMLInputElement>(null);
+  const ppdTarget = useRef<Printer | null>(null);
 
   const load = async () => {
     try {
@@ -68,6 +71,18 @@ export function Printers({ notify }: { notify: Notify }) {
     event.target.value = "";
     if (!file || !printer) return;
     await run(printer.queue, () => api.uploadPrint(printer.queue, file), `Sent “${file.name}” to ${printer.displayName}`);
+  };
+
+  const onPickPpd = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const printer = ppdTarget.current;
+    event.target.value = "";
+    if (!file || !printer) return;
+    await run(
+      printer.queue,
+      () => api.installPpd(printer.queue, file),
+      `Installed “${file.name}” on ${printer.displayName}`
+    );
   };
 
   return (
@@ -186,6 +201,18 @@ export function Printers({ notify }: { notify: Notify }) {
                 </button>
                 <button
                   className="btn btn-ghost btn-icon"
+                  data-tooltip="Upload a PPD (driver)"
+                  aria-label="Upload a PPD (driver)"
+                  disabled={busyQueue === printer.queue}
+                  onClick={() => {
+                    ppdTarget.current = printer;
+                    ppdInput.current?.click();
+                  }}
+                >
+                  <UploadIcon size={16} />
+                </button>
+                <button
+                  className="btn btn-ghost btn-icon"
                   data-tooltip={printer.enabled ? "Pause printer" : "Resume printer"}
                   aria-label={printer.enabled ? "Pause printer" : "Resume printer"}
                   disabled={busyQueue === printer.queue}
@@ -212,6 +239,7 @@ export function Printers({ notify }: { notify: Notify }) {
       )}
 
       <input ref={fileInput} type="file" hidden onChange={onPickFile} />
+      <input ref={ppdInput} type="file" hidden accept=".ppd,.gz,application/vnd.cups-ppd" onChange={onPickPpd} />
 
       {showAdd ? (
         <AddPrinterDialog existing={printers} onClose={() => setShowAdd(false)} onAdded={() => void load()} notify={notify} />

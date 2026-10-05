@@ -138,7 +138,7 @@ async function getDefaultQueue(): Promise<string> {
     const response = await ippRequest(IPP_OP.CUPS_GET_DEFAULT, [
       opGroup([...commonAttributes(), { tag: IPP_TAG.keyword, name: "requested-attributes", value: "printer-name" }]),
     ]);
-    if (response.statusCode !== 0) return "";
+    if (response.statusCode >= 0x0100) return "";
     for (const group of response.groups) {
       const name = values(group, "printer-name")[0];
       if (typeof name === "string") return name;
@@ -158,7 +158,7 @@ export async function listPrinters(): Promise<PrinterView[]> {
     ]),
   ]);
 
-  if (response.statusCode !== 0) logIppFailure("CUPS-Get-Printers", response);
+  if (response.statusCode >= 0x0100) logIppFailure("CUPS-Get-Printers", response);
 
   const printerGroupRecords = response.groups
     .filter((group) => group.tag === IPP_TAG.printerAttributes)
@@ -224,6 +224,13 @@ export interface AddPrinterInput {
   makeAndModel?: string;
   /** When set, the queue is created as a thermal label printer. */
   thermal?: Partial<ThermalConfig> | null;
+  /** A base64-encoded PPD to install instead of a driver id. */
+  ppdBase64?: string;
+}
+
+/** A PPD starts with *PPD-Adobe or a *FormatVersion line. */
+export function looksLikePpd(buffer: Buffer): boolean {
+  return /\*PPD-Adobe|\*FormatVersion|\*LanguageEncoding/.test(buffer.toString("latin1", 0, 4096));
 }
 
 function resolveDriver(deviceUri: string, requested: AddPrinterInput["driver"]): string {
@@ -303,12 +310,22 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
     deviceUri = deviceUri.replace(/^usb:/i, "cuppa-usb:");
   }
 
+  const uploadedPpd = input.ppdBase64 ? Buffer.from(input.ppdBase64, "base64") : null;
+  if (uploadedPpd && !looksLikePpd(uploadedPpd)) {
+    throw new Error("That file does not look like a PPD (no *PPD-Adobe or *FormatVersion header).");
+  }
+
   const args = ["-p", queue, "-E", "-v", deviceUri];
   let ppdPath: string | null = null;
   if (thermalConfig) {
     // A generated PPD routes the job through the cuppa-thermal filter.
     ppdPath = path.join(os.tmpdir(), `cuppa-${queue}-${Date.now()}.ppd`);
     writeFileSync(ppdPath, buildThermalPpd(thermalConfig, displayName), "utf8");
+    args.push("-P", ppdPath);
+  } else if (uploadedPpd) {
+    // A vendor or compatible PPD supplied by the user.
+    ppdPath = path.join(os.tmpdir(), `cuppa-upload-${queue}-${Date.now()}.ppd`);
+    writeFileSync(ppdPath, uploadedPpd);
     args.push("-P", ppdPath);
   } else {
     args.push("-m", driver);
@@ -358,12 +375,36 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
     location,
     shared,
     createdAt: Date.now(),
-    driver: thermalConfig ? `Thermal (${thermalConfig.dialect.toUpperCase()})` : driver,
+    driver: thermalConfig
+      ? `Thermal (${thermalConfig.dialect.toUpperCase()})`
+      : uploadedPpd
+        ? "Uploaded PPD"
+        : driver,
   });
   log.info(
     `Added printer ${queue} (${displayName}) -> ${deviceUri} [${thermalConfig ? `thermal:${thermalConfig.dialect}` : driver}]`
   );
   return queue;
+}
+
+/** Installs a user-supplied PPD on an existing queue. */
+export async function installPpd(queue: string, ppd: Buffer): Promise<void> {
+  if (!looksLikePpd(ppd)) {
+    throw new Error("That file does not look like a PPD (no *PPD-Adobe or *FormatVersion header).");
+  }
+  const file = path.join(os.tmpdir(), `cuppa-${queue}-${Date.now()}.ppd`);
+  writeFileSync(file, ppd);
+  try {
+    await runOrThrow("lpadmin", ["-p", queue, "-P", file], { timeoutMs: 30_000 });
+  } finally {
+    try {
+      unlinkSync(file);
+    } catch {
+      // best effort
+    }
+  }
+  store.patchMeta(queue, { driver: "Uploaded PPD" });
+  log.info(`Installed an uploaded PPD for ${queue}`);
 }
 
 /** Updates a thermal queue's settings and reinstalls its PPD. */
@@ -521,7 +562,7 @@ export async function listJobs(scope: "active" | "history" | "all"): Promise<Job
     ]),
   ]);
 
-  if (response.statusCode !== 0) logIppFailure("Get-Jobs", response);
+  if (response.statusCode >= 0x0100) logIppFailure("Get-Jobs", response);
 
   const jobGroupRecords = response.groups
     .filter((group) => group.tag === IPP_TAG.jobAttributes)
@@ -557,6 +598,62 @@ export async function listJobs(scope: "active" | "history" | "all"): Promise<Job
 
 export async function cancelJob(id: number): Promise<void> {
   await runOrThrow("cancel", [String(id)]);
+}
+
+/** Parses `avahi-browse -rtp <type>` lines into direct IPP device URIs. */
+export function parseAvahiBrowse(stdout: string, secure: boolean): DeviceView[] {
+  const devices: DeviceView[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line.startsWith("=")) continue;
+    const parts = line.split(";");
+    if (parts.length < 10) continue;
+    const name = parts[3] ?? "";
+    const address = parts[7] ?? "";
+    const port = parts[8] ?? "631";
+    const txt = parts.slice(9).join(";");
+    if (!address) continue;
+
+    const attrs = new Map<string, string>();
+    // TXT entries arrive as space-separated quoted pairs, e.g.
+    //   "rp=ipp/print" "ty=Brother MFC-L2717DW"
+    // so split on the quote boundaries to keep spaces inside values.
+    const quoted = txt.match(/"[^"]*"/g) ?? [];
+    if (quoted.length > 0) {
+      for (const raw of quoted) {
+        const entry = raw.slice(1, -1);
+        const equals = entry.indexOf("=");
+        if (equals > 0) attrs.set(entry.slice(0, equals), entry.slice(equals + 1));
+      }
+    } else {
+      for (const entry of txt.split(/[,\s]+/)) {
+        const equals = entry.indexOf("=");
+        if (equals > 0) attrs.set(entry.slice(0, equals), entry.slice(equals + 1));
+      }
+    }
+    const resource = (attrs.get("rp") ?? "ipp/print").replace(/^\//, "");
+    const scheme = secure ? "ipps" : "ipp";
+    devices.push({
+      uri: `${scheme}://${address}:${port}/${resource}`,
+      kind: "network",
+      makeAndModel: attrs.get("ty") ?? attrs.get("usb_MDL") ?? name,
+      info: name,
+    });
+  }
+  return devices;
+}
+
+/**
+ * CUPS' own dnssd/driverless discovery is unreliable when the container uses
+ * the host's Avahi (the compat DNS-SD layer wants a socket the container does
+ * not have), but `avahi-browse` over the host D-Bus works. So browse mDNS
+ * ourselves and add the IPP entries directly.
+ */
+async function avahiDevices(): Promise<DeviceView[]> {
+  const [ipp, ipps] = await Promise.all([
+    run("avahi-browse", ["-rtp", "_ipp._tcp"], { timeoutMs: 8000 }),
+    run("avahi-browse", ["-rtp", "_ipps._tcp"], { timeoutMs: 8000 }),
+  ]);
+  return [...parseAvahiBrowse(ipp.stdout, false), ...parseAvahiBrowse(ipps.stdout, true)];
 }
 
 /** Parses `lpinfo -l -v` long device listings. */
@@ -611,6 +708,14 @@ export async function discoverDevices(): Promise<DeviceView[]> {
         devices.push({ uri: match[2]!, kind: match[1]!, makeAndModel: "", info: "" });
       }
     }
+  }
+
+  // Add mDNS-discovered IPP printers, which CUPS' own dnssd backend misses when
+  // the container borrows the host's Avahi.
+  for (const device of await avahiDevices()) {
+    if (!device.uri || seen.has(device.uri)) continue;
+    seen.add(device.uri);
+    devices.push(device);
   }
 
   // Only surface real, usable device URIs.
@@ -707,7 +812,6 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
   };
 }
 
-const USB_BACKEND = process.env.CUPPA_USB_BACKEND || "/usr/lib/cups/backend/usb";
 const PACED_USB_BACKEND = process.env.CUPPA_PACED_USB_BACKEND || "/usr/lib/cups/backend/cuppa-usb";
 
 export interface UsbSelfTestStep {
@@ -834,28 +938,22 @@ export async function usbSelfTest(queue: string): Promise<UsbSelfTestResult> {
     }
   };
 
+  // Kernel writes first: the stock libusb backend detaches usblp and can wedge
+  // these printers, so it must never run before the path that actually prints.
+  const device = findUsbPrintDevice();
+  if (device) {
+    steps.push(await writeDevice(device, true));
+    steps.push(await writeDevice(device, false));
+  }
+
   steps.push(
     await runBackend(
-      "Direct USB backend",
-      "Runs the stock CUPS USB backend directly, skipping the scheduler and spooler.",
-      USB_BACKEND,
-      usbUri
-    )
-  );
-  steps.push(
-    await runBackend(
-      "Paced Cuppa USB backend",
-      "Runs the 1 KiB / 10 ms backend that thermal queues use.",
+      "Cuppa USB backend",
+      "Runs the queue's real backend end to end (kernel usblp path, 1 KiB / 10 ms).",
       PACED_USB_BACKEND,
       `cuppa-usb://${usbUri.replace(/^usb:\/\//i, "")}`
     )
   );
-
-  const device = findUsbPrintDevice();
-  if (device) {
-    steps.push(await writeDevice(device, false));
-    steps.push(await writeDevice(device, true));
-  }
 
   log.info(`USB self-test for ${queue}: ${steps.map((step) => `${step.name}=${step.ok ? "ok" : "fail"}`).join(", ")}`);
   return { queue, deviceUri: printer.deviceUri, usbUri, bytes: payload.length, steps };
@@ -1009,7 +1107,10 @@ async function ippProbe(
       );
       lastStatus = response.statusCode;
       const group = response.groups.find((candidate) => candidate.tag === IPP_TAG.printerAttributes);
-      if (response.statusCode !== 0 || !group) {
+      // Any status below 0x0100 is a success. 0x0001 ("ok-ignored-or-substituted-
+      // attributes") is common on printers that don't accept every attribute we
+      // asked for, and must not be treated as a failure.
+      if (response.statusCode >= 0x0100 || !group) {
         lastError = `IPP status 0x${response.statusCode.toString(16)}`;
         continue;
       }

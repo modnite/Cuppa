@@ -47,6 +47,7 @@ test(
         timeoutMs: 20_000,
         env: {
           CUPPA_USB_BACKEND: stub,
+          CUPPA_USB_DEVICE: path.join(dir, "no-such-lp-device"),
           CUPPA_USB_START_DELAY_MS: "0",
           DEVICE_URI: "cuppa-usb://Test/Printer?serial=1",
         },

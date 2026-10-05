@@ -70,6 +70,7 @@ export const api = {
     makeAndModel?: string;
     shared?: boolean;
     thermal?: Partial<ThermalConfig> | null;
+    ppdBase64?: string;
   }) => request<{ ok: boolean; queue: string }>("/api/printers", { method: "POST", body: JSON.stringify(input) }),
   updateThermal: (queue: string, patch: Partial<ThermalConfig>) =>
     request<{ ok: boolean }>(`/api/printers/${encodeURIComponent(queue)}/thermal`, {
@@ -103,6 +104,14 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     return request<{ ok: boolean }>(`/api/printers/${encodeURIComponent(queue)}/print`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  installPpd: (queue: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ ok: boolean }>(`/api/printers/${encodeURIComponent(queue)}/ppd`, {
       method: "POST",
       body: form,
     });

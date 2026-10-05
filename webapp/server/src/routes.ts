@@ -11,6 +11,7 @@ import {
   cancelJob,
   collectDiagnostics,
   discoverDevices,
+  installPpd,
   listDrivers,
   listJobs,
   listPrinters,
@@ -122,6 +123,7 @@ export function registerRoutes(app: FastifyInstance): void {
       shared?: boolean;
       makeAndModel?: string;
       thermal?: Partial<ThermalConfig> | null;
+      ppdBase64?: string;
     };
     try {
       const queue = await addPrinter({
@@ -132,6 +134,7 @@ export function registerRoutes(app: FastifyInstance): void {
         shared: body.shared ?? true,
         makeAndModel: body.makeAndModel,
         thermal: body.thermal ?? null,
+        ppdBase64: body.ppdBase64,
       });
       await refreshAdvertisements();
       return { ok: true, queue };
@@ -171,6 +174,23 @@ export function registerRoutes(app: FastifyInstance): void {
     const body = (request.body ?? {}) as Partial<ThermalConfig>;
     try {
       await updateThermalSettings(param(request, "queue"), body);
+      await refreshAdvertisements();
+      return { ok: true };
+    } catch (error) {
+      reply.code(400);
+      return { error: errorMessage(error) };
+    }
+  });
+
+  app.post("/api/printers/:queue/ppd", async (request, reply) => {
+    const queue = param(request, "queue");
+    const upload = await request.file({ limits: { fileSize: 20 * 1024 * 1024 } });
+    if (!upload) {
+      reply.code(400);
+      return { error: "No PPD was uploaded" };
+    }
+    try {
+      await installPpd(queue, await upload.toBuffer());
       await refreshAdvertisements();
       return { ok: true };
     } catch (error) {
