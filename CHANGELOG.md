@@ -38,6 +38,18 @@ Notable changes to Cuppa, newest first. Loosely follows
   dialect was previously fixed to TSPL in the UI.
 
 ### Fixed
+- **Thermal label printers now print a test page.** The Rollo X1038 (and the
+  Xprinter/Munbyn/Phomemo rebrands, IEEE-1284 id `CMD:XPP,XL`) only print TSPL
+  **BITMAP** jobs; the TEXT/BOX/BARCODE/QRCODE test label was accepted and then
+  silently ignored. Test Print now sends a real PDF page through the queue's
+  filter, and the self-test rasterizes the page into a TSPL BITMAP job, matching
+  the Android app's proven behaviour.
+- **IPP Everywhere printers can be added again.** `lpadmin -m everywhere` asks
+  cupsd's driver helper, which falls back to DNS-SD discovery and fails when the
+  container borrows the host's Avahi (`ippfind` cannot use Bonjour). Cuppa now
+  builds the driverless PPD with `driverless <uri>`, which queries the printer
+  directly, both when adding a printer and when probing a raw/socket/LPD address
+  for an IPP endpoint.
 - **Thermal USB label printers now print.** CUPS' stock USB backend uses libusb,
   which detaches the kernel `usblp` driver. The printer — the Rollo X1038 and
   the Xprinter/Munbyn/Phomemo rebrands, IEEE-1284 id `CMD:XPP,XL` — then ACKs

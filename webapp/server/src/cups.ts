@@ -258,13 +258,12 @@ function candidateIppUris(deviceUri: string): string[] {
  */
 async function probeIppEverywhere(candidates: string[]): Promise<string | null> {
   for (const ippUri of candidates) {
-    const probe = `cuppa_probe_${Date.now()}`;
-    try {
-      const result = await run("lpadmin", ["-p", probe, "-E", "-v", ippUri, "-m", "everywhere"], { timeoutMs: 20_000 });
-      if (result.code === 0 && existsSync(`/etc/cups/ppd/${probe}.ppd`)) return ippUri;
-    } finally {
-      await run("lpadmin", ["-x", probe]);
-    }
+    // `driverless <uri>` queries the printer directly. `lpadmin -m everywhere`
+    // would go through cupsd's driver helper and DNS-SD discovery, which fails
+    // when the container borrows the host's Avahi (`ippfind` cannot use
+    // Bonjour).
+    const generated = await run("driverless", [ippUri], { timeoutMs: 30_000 });
+    if (generated.code === 0 && looksLikePpd(Buffer.from(generated.stdout))) return ippUri;
   }
   return null;
 }
@@ -315,6 +314,24 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
     throw new Error("That file does not look like a PPD (no *PPD-Adobe or *FormatVersion header).");
   }
 
+  // Build the driverless PPD ourselves with the `driverless` CLI. `lpadmin -m
+  // everywhere` asks cupsd's driver helper, which falls back to DNS-SD
+  // discovery and fails when the container borrows the host's Avahi (`ippfind`
+  // cannot use Bonjour). Given a URI, `driverless` queries the printer
+  // directly instead.
+  let driverlessPpd: string | null = null;
+  if (!thermalConfig && !uploadedPpd && driver === "everywhere") {
+    const generated = await run("driverless", [deviceUri], { timeoutMs: 45_000 });
+    if (generated.code === 0 && looksLikePpd(Buffer.from(generated.stdout))) {
+      driverlessPpd = generated.stdout;
+      log.info(`Generated a driverless PPD for ${queue}`);
+    } else {
+      log.warn(
+        `driverless could not build a PPD for ${queue}: ${generated.stderr.trim() || `exit ${generated.code}`}`
+      );
+    }
+  }
+
   const args = ["-p", queue, "-E", "-v", deviceUri];
   let ppdPath: string | null = null;
   if (thermalConfig) {
@@ -326,6 +343,10 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
     // A vendor or compatible PPD supplied by the user.
     ppdPath = path.join(os.tmpdir(), `cuppa-upload-${queue}-${Date.now()}.ppd`);
     writeFileSync(ppdPath, uploadedPpd);
+    args.push("-P", ppdPath);
+  } else if (driverlessPpd) {
+    ppdPath = path.join(os.tmpdir(), `cuppa-driverless-${queue}-${Date.now()}.ppd`);
+    writeFileSync(ppdPath, driverlessPpd, "utf8");
     args.push("-P", ppdPath);
   } else {
     args.push("-m", driver);
@@ -472,10 +493,21 @@ export async function printFile(queue: string, filePath: string, title: string):
 
 /** Prints CUPS' standard test page, falling back to a generated text page. */
 export async function testPrint(queue: string): Promise<void> {
-  // Thermal queues get a pre-encoded diagnostic label sent raw, bypassing the
-  // filter (the bytes are already the printer's command language).
+  // Thermal queues get a real PDF test page sent through the queue, so the
+  // cuppa-thermal filter runs and produces the printer's command language
+  // exactly like a normal job. The Rollo X1038 only prints TSPL BITMAP jobs, so
+  // a pre-drawn text/barcode label would be silently ignored.
   const thermalConfig = loadThermalConfig(queue);
   if (thermalConfig) {
+    const page = [ENV.testPage, "/usr/share/cups/data/default-testpage.pdf", "/usr/share/cups/data/testprint"].find(
+      (candidate) => existsSync(candidate)
+    );
+    if (page) {
+      await printFile(queue, page, "Cuppa Thermal Test");
+      return;
+    }
+
+    // Fallback: a pre-encoded label sent raw (rasterized for TSPL).
     const file = path.join(os.tmpdir(), `cuppa-thermal-test-${Date.now()}.tspl`);
     writeFileSync(file, generateThermalTestLabel(thermalConfig, queue));
     try {
