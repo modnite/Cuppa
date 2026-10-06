@@ -89,7 +89,7 @@ export default function App() {
   if (booting) {
     return (
       <div className="center" style={{ height: "100%" }}>
-        <CuppaIcon size={60} radius={14} />
+        <CuppaIcon size={68} radius={16} />
         <div className="muted">Starting Cuppa…</div>
       </div>
     );
