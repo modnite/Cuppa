@@ -1,4 +1,5 @@
 import type { Page, Status } from "../types";
+import { CuppaIcon } from "./CuppaIcon";
 import { GaugeIcon, JobsIcon, PrinterIcon, SettingsIcon, TerminalIcon } from "./Icons";
 
 const NAV: Array<{ page: Page; label: string; icon: typeof GaugeIcon }> = [
@@ -22,7 +23,7 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img src="/icon.svg" alt="Cuppa" />
+        <CuppaIcon size={30} />
         <div>
           <div className="brand-name">Cuppa</div>
           <div className="brand-sub">Print server</div>

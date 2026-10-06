@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, ApiError } from "../api";
 import { Spinner } from "./ui";
+import { CuppaIcon } from "./CuppaIcon";
 import { LockIcon } from "./Icons";
 
 export function Login({ onSuccess }: { onSuccess: () => void }) {
@@ -25,7 +26,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="login-wrap">
       <form className="card login-card" onSubmit={submit}>
-        <img src="/icon.svg" alt="Cuppa" />
+        <CuppaIcon size={54} radius={13} />
         <h1>Cuppa</h1>
         <p>Enter the admin password to manage this print server.</p>
         <div className="field">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import { Login } from "./components/Login";
+import { CuppaIcon } from "./components/CuppaIcon";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts, type ToastMessage } from "./components/ui";
 import { Dashboard } from "./pages/Dashboard";
@@ -88,7 +89,7 @@ export default function App() {
   if (booting) {
     return (
       <div className="center" style={{ height: "100%" }}>
-        <img src="/icon.svg" alt="Cuppa" style={{ width: 52, height: 52, borderRadius: 12 }} />
+        <CuppaIcon size={52} radius={12} />
         <div className="muted">Starting Cuppa…</div>
       </div>
     );

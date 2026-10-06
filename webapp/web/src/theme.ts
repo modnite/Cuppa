@@ -1,3 +1,5 @@
+import icon from "./assets/cuppa-icon.svg?raw";
+
 export type ThemeMode = "light" | "dark" | "system";
 export type AccentKey = "teal" | "blue" | "purple" | "green" | "orange" | "rose";
 
@@ -55,9 +57,24 @@ export function resolveTheme(mode: ThemeMode): "light" | "dark" {
   return mode;
 }
 
+/** Rebuilds the favicon from the mark with the current accent colour. */
+function applyFavicon(): void {
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  const svg = accent ? icon.replace(/#1B5E4B/i, accent) : icon;
+  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  link.type = "image/svg+xml";
+  link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 /** Applies the resolved theme and accent to the document root. */
 export function applyTheme(prefs: ThemePrefs): void {
   const root = document.documentElement;
   root.dataset.theme = resolveTheme(prefs.mode);
   root.dataset.accent = prefs.accent;
+  applyFavicon();
 }

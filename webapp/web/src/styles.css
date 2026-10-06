@@ -206,6 +206,24 @@ a:hover {
   box-shadow: var(--shadow-sm);
 }
 
+/* The Cuppa mark is inlined so its background can follow the accent colour. */
+.cuppa-icon {
+  display: inline-block;
+  line-height: 0;
+  overflow: hidden;
+  flex: 0 0 auto;
+  box-shadow: var(--shadow-sm);
+}
+.cuppa-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cuppa-icon .s0 {
+  fill: var(--accent);
+  transition: fill 160ms ease;
+}
+
 .brand-name {
   font-size: 17px;
   font-weight: 650;
