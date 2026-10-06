@@ -46,6 +46,10 @@ Notable changes to Cuppa, newest first. Loosely follows
   reads a warm cache, so the Add-printer and Diagnostics lists update on their
   own. A printer stays listed for a couple of minutes after it stops answering,
   so a sleeping printer no longer flickers in and out.
+- When a printer's Bonjour records do not resolve — some Brother units collide
+  on the same service name and one never resolves — Cuppa sweeps the local
+  subnet for hosts answering IPP on port 631, so it is still found. The
+  Diagnostics **Discovery (resolved)** section lists what discovery found.
 - Raw network devices (socket/LPD/HTTP) are hidden from the Add-printer and
   Diagnostics lists by default; a **Show raw** toggle reveals them.
 - The image is built for **`linux/amd64` only** (the office NAS is an Intel

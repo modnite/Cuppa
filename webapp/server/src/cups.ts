@@ -767,6 +767,8 @@ const STICKY_MS = 120_000;
 const SCAN_TIMEOUT_MS = 6000;
 /** How often to re-scan CUPS for USB/socket devices. */
 const LPINFO_INTERVAL_MS = 8000;
+/** How often to sweep the local subnet for printers whose mDNS is broken. */
+const SWEEP_INTERVAL_MS = 180_000;
 
 interface CachedDevice {
   device: DeviceView;
@@ -777,6 +779,7 @@ const deviceCache = new Map<string, CachedDevice>();
 let lastLpinfoScan = 0;
 let scanInFlight: Promise<void> | null = null;
 let lpinfoTimer: NodeJS.Timeout | null = null;
+let sweepTimer: NodeJS.Timeout | null = null;
 let mdnsChildren: ChildProcess[] = [];
 let stopping = false;
 
@@ -799,7 +802,44 @@ async function scanLpinfo(): Promise<void> {
   pruneStale();
 }
 
-/** A complete one-shot scan (mDNS + CUPS), used on demand and at startup. */
+/**
+ * Sweeps the local /24 for hosts answering IPP on 631.
+ *
+ * Some printers — notably Brother units that collide on the same Bonjour name —
+ * advertise a service that never resolves, so mDNS can never turn it into an
+ * address. A direct probe finds them anyway. Runs on demand and on a slow timer.
+ */
+async function sweepSubnet(): Promise<void> {
+  const self = primaryIPv4();
+  const parts = self.split(".");
+  if (parts.length !== 4 || self.startsWith("127.")) return;
+  const base = `${parts[0]}.${parts[1]}.${parts[2]}`;
+
+  const hosts: string[] = [];
+  for (let octet = 1; octet <= 254; octet += 1) hosts.push(`${base}.${octet}`);
+
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < hosts.length) {
+      const host = hosts[cursor++]!;
+      if (host === self) continue;
+      const tcp = await tcpProbe(host, 631, 400);
+      if (!tcp.ok) continue;
+      const ipp = await ippProbe(host, 631, false, IPP_PATHS);
+      if (ipp.ok) {
+        rememberDevice({
+          uri: `ipp://${host}:631${ipp.path}`,
+          kind: "network",
+          makeAndModel: ipp.makeAndModel,
+          info: ipp.makeAndModel,
+        });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: 48 }, worker));
+}
+
+/** A complete one-shot scan (mDNS + CUPS + subnet sweep), used on demand. */
 async function scanAll(): Promise<void> {
   const [avahi, lpinfo] = await Promise.all([
     avahiDevices(),
@@ -807,6 +847,7 @@ async function scanAll(): Promise<void> {
   ]);
   for (const device of [...avahi, ...parseLpinfo(lpinfo.stdout)]) rememberDevice(device);
   lastLpinfoScan = Date.now();
+  await sweepSubnet();
   pruneStale();
 }
 
@@ -854,6 +895,12 @@ export function startDiscovery(): void {
     }, LPINFO_INTERVAL_MS);
     lpinfoTimer.unref();
   }
+  if (!sweepTimer) {
+    sweepTimer = setInterval(() => {
+      void sweepSubnet();
+    }, SWEEP_INTERVAL_MS);
+    sweepTimer.unref();
+  }
   void scanAll();
 }
 
@@ -865,6 +912,10 @@ export function stopDiscovery(): void {
   if (lpinfoTimer) {
     clearInterval(lpinfoTimer);
     lpinfoTimer = null;
+  }
+  if (sweepTimer) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
   }
 }
 
@@ -973,8 +1024,10 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
       "echo '-- sockets --'; ls -l /run/dbus/system_bus_socket /host-dbus/system_bus_socket /run/avahi-daemon/socket 2>&1; echo; echo '-- _ipp._tcp --'; timeout 6 avahi-browse -rt _ipp._tcp 2>&1 | head -40 || true",
     ]),
   ]);
+  const discovered = (await discoverDevices(true)).map((device) => device.uri).join("\n");
   return {
     devices,
+    discovered,
     queues,
     printers,
     jobs,

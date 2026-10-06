@@ -29,6 +29,7 @@ const SECTIONS: Array<{ key: string; label: string; hint: string }> = [
   { key: "printers", label: "Printers", hint: "lpstat -p -d — state and default queue." },
   { key: "jobs", label: "Jobs", hint: "lpstat -W all -o — every queued, held and completed job." },
   { key: "devices", label: "Discovered devices", hint: "lpinfo -v — what CUPS can see right now." },
+  { key: "discovered", label: "Discovery (resolved)", hint: "Devices Cuppa found and resolved, including mDNS and the subnet sweep." },
   { key: "backends", label: "Backends", hint: "Installed CUPS backends, including cuppa-usb." },
   { key: "thermal", label: "Thermal queues", hint: "Queues with a saved thermal configuration." },
   { key: "printerOptions", label: "Printer options", hint: "lpoptions -l — the PPD options each queue exposes." },
