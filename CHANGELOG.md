@@ -40,6 +40,10 @@ Notable changes to Cuppa, newest first. Loosely follows
   dialect was previously fixed to TSPL in the UI.
 
 ### Changed
+- The UI drops the "rounded box with a 1px outline" look. Cards and controls are
+  now defined by layered surfaces and soft shadows rather than hard borders, with
+  gradient/glow accents on primary actions and the active nav item, and warmer
+  neutrals.
 - The Cuppa mark — sidebar, login screen and browser tab — now takes its
   background colour from the selected accent instead of a fixed teal, and is
   larger so its detail is legible.
