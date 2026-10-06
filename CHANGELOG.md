@@ -47,6 +47,11 @@ Notable changes to Cuppa, newest first. Loosely follows
   it stops answering, so a sleeping printer no longer flickers in and out.
 - Raw network devices (socket/LPD/HTTP) are hidden from the Add-printer and
   Diagnostics lists by default; a **Show raw** toggle reveals them.
+- The image is built for **`linux/amd64` only** (the office NAS is an Intel
+  x86_64), which roughly halves the CI build time by removing QEMU emulation.
+  The bundled driver set is trimmed to `brlaser` plus IPP Everywhere; `ipp-usb`
+  and the foomatic PPD collection are gone. IPP Everywhere covers the office
+  printers, and any PPD can still be uploaded.
 
 ### Removed
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).

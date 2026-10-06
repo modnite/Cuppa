@@ -123,8 +123,9 @@ compose file already passes through `/dev/bus/usb`, so CUPS sees them:
   stock USB backend detaches `usblp`, after which the printer ACKs the transfer,
   prints nothing and wedges. Cuppa writes to `/dev/usb/lpN` directly for exactly
   this reason.
-- **USB IPP / AirPrint printers** (e.g. HP DeskJet): the image runs `ipp-usb`,
-  so they appear like a network IPP printer and use IPP Everywhere.
+- **USB IPP / AirPrint printers**: add them by their IPP address (they usually
+  expose one), or upload the vendor PPD if the printer does not speak IPP
+  Everywhere.
 
 On some NAS firmware USB still needs `privileged: true` (commented in the
 compose file).
@@ -193,11 +194,12 @@ printers, so it must never run before the path that actually prints.
 
 ## Drivers
 
-Cuppa ships the broad OpenPrinting driver set so most printers can be driven
-locally without a vendor app: Gutenprint, hpcups (HP), SpliX (Samsung/Xerox),
-Epson ESC/P-R, foo2zjs, P-touch, DYMO, C2ESP, PXLJR, SAG-GDI, OKI, brlaser and
-the foomatic PPD collection. IPP Everywhere (driverless) is still preferred for
-any printer that speaks it; the specific-driver picker is there for the rest.
+Cuppa prefers **IPP Everywhere (driverless)** for any printer that speaks it —
+which is nearly everything made in the last decade, including the office
+Brother. For the rare printer that still needs a driver, the image bundles
+[`brlaser`](https://github.com/pdewacht/brlaser) for Brother lasers, and you can
+**upload any PPD** when adding a printer, or install one on an existing queue
+from the printer card.
 
 If a printer is missing from the list — or only a near-identical model is listed
 — you can **upload its PPD** when adding it, or install one on an existing queue
