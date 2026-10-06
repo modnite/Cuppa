@@ -37,6 +37,18 @@ Notable changes to Cuppa, newest first. Loosely follows
   now be chosen in the webapp when adding or editing a thermal printer; the
   dialect was previously fixed to TSPL in the UI.
 
+### Changed
+- Printer discovery is much faster and now effectively live. Scans run in the
+  background every few seconds into a warm cache, and the API returns instantly,
+  so the Add-printer list and the Diagnostics discovered list update on their own
+  without a manual rescan. A printer stays listed for a couple of minutes after
+  it stops answering, so a sleeping printer no longer flickers in and out.
+- Raw network devices (socket/LPD/HTTP) are hidden from the Add-printer and
+  Diagnostics lists by default; a **Show raw** toggle reveals them.
+
+### Removed
+- The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
+
 ### Fixed
 - User-initiated prints (Test Print, Print a file) re-enable the queue first, so
   a printer stopped by an earlier error no longer holds new jobs as pending and

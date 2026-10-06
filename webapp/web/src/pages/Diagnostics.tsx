@@ -136,6 +136,10 @@ function ProbeCard({ probe }: { probe: NetworkProbe }) {
   );
 }
 
+function isRawDevice(uri: string): boolean {
+  return /^(socket|lpd|http):/i.test(uri);
+}
+
 export function Diagnostics({ notify }: { notify: Notify }) {
   const [data, setData] = useState<DiagnosticsData | null>(null);
   const [printers, setPrinters] = useState<Printer[]>([]);
@@ -143,6 +147,7 @@ export function Diagnostics({ notify }: { notify: Notify }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showRaw, setShowRaw] = useState(false);
 
   const [testing, setTesting] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, UsbSelfTestResult>>({});
@@ -209,6 +214,7 @@ export function Diagnostics({ notify }: { notify: Notify }) {
 
   const usbPrinters = printers.filter((printer) => /^(cuppa-)?usb:/i.test(printer.deviceUri));
   const manualResult = probeResults[manualUri.trim()];
+  const visibleDevices = showRaw ? devices : devices.filter((device) => !isRawDevice(device.uri));
 
   return (
     <div>
@@ -360,11 +366,22 @@ export function Diagnostics({ notify }: { notify: Notify }) {
           </div>
         ) : null}
 
+        <div className="row between mt">
+          <div className="small muted">Discovered devices</div>
+          <label className="row small muted" style={{ gap: 6, cursor: "pointer" }}>
+            <input type="checkbox" checked={showRaw} onChange={(event) => setShowRaw(event.target.checked)} />
+            Show raw
+          </label>
+        </div>
         <div className="mt">
-          {devices.length === 0 ? (
-            <div className="small muted">No devices discovered right now.</div>
+          {visibleDevices.length === 0 ? (
+            <div className="small muted">
+              {devices.length === 0
+                ? "No devices discovered right now."
+                : "Only raw devices found; tick “Show raw”."}
+            </div>
           ) : (
-            devices.map((device) => {
+            visibleDevices.map((device) => {
               const result = probeResults[device.uri];
               return (
                 <div key={device.uri} className="usb-test">

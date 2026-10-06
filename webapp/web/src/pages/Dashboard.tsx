@@ -127,38 +127,6 @@ export function Dashboard({
             ))}
           </div>
         )}
-
-        <div className="instruction-list mt" style={{ marginTop: 20 }}>
-          <div className="instruction">
-            <span className="num">1</span>
-            <div>
-              <strong>macOS</strong>
-              <div className="muted small">
-                System Settings → Printers &amp; Scanners → Add Printer. Your Cuppa printers appear
-                under “Nearby Printers” with no driver to install.
-              </div>
-            </div>
-          </div>
-          <div className="instruction">
-            <span className="num">2</span>
-            <div>
-              <strong>iPhone / iPad</strong>
-              <div className="muted small">
-                In any app, tap Share → Print, then choose a Cuppa printer from the list.
-              </div>
-            </div>
-          </div>
-          <div className="instruction">
-            <span className="num">3</span>
-            <div>
-              <strong>Android</strong>
-              <div className="muted small">
-                Use your app's print menu, or Settings → Connected devices → Printing. Cuppa
-                printers are advertised over IPP Everywhere / Mopria.
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="section-title">Server</div>

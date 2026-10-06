@@ -7,7 +7,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import { refreshAdvertisements } from "./advertise.js";
 import { auth } from "./auth.js";
-import { migrateThermalUsbQueues } from "./cups.js";
+import { migrateThermalUsbQueues, refreshDiscovery } from "./cups.js";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { registerRoutes } from "./routes.js";
@@ -81,6 +81,11 @@ async function main(): Promise<void> {
     void refreshAdvertisements();
   }, 60_000);
   timer.unref();
+
+  // Keep the discovery cache warm so the Add-printer list is instant.
+  const discoveryTimer = setInterval(() => refreshDiscovery(), 6000);
+  discoveryTimer.unref();
+  refreshDiscovery();
 
   await app.listen({ host: "0.0.0.0", port: ENV.webPort });
   log.info(`Cuppa web UI listening on http://0.0.0.0:${ENV.webPort}`);

@@ -694,17 +694,14 @@ export function parseAvahiBrowse(stdout: string, secure: boolean): DeviceView[] 
  */
 async function avahiDevices(): Promise<DeviceView[]> {
   const [ipp, ipps] = await Promise.all([
-    run("avahi-browse", ["-rtp", "_ipp._tcp"], { timeoutMs: 8000 }),
-    run("avahi-browse", ["-rtp", "_ipps._tcp"], { timeoutMs: 8000 }),
+    run("avahi-browse", ["-rtp", "_ipp._tcp"], { timeoutMs: SCAN_TIMEOUT_MS }),
+    run("avahi-browse", ["-rtp", "_ipps._tcp"], { timeoutMs: SCAN_TIMEOUT_MS }),
   ]);
   return [...parseAvahiBrowse(ipp.stdout, false), ...parseAvahiBrowse(ipps.stdout, true)];
 }
 
-/** Parses `lpinfo -l -v` long device listings. */
-export async function discoverDevices(): Promise<DeviceView[]> {
-  const result = await run("lpinfo", ["-l", "-v"], { timeoutMs: 45_000 });
-  if (result.code !== 0 && !result.stdout) return [];
-
+/** Parses `lpinfo -l -v` long (or compact) device listings. */
+function parseLpinfo(stdout: string): DeviceView[] {
   const devices: DeviceView[] = [];
   const seen = new Set<string>();
   let current: Partial<DeviceView> | null = null;
@@ -722,30 +719,25 @@ export async function discoverDevices(): Promise<DeviceView[]> {
     current = null;
   };
 
-  for (const rawLine of result.stdout.split(/\r?\n/)) {
+  for (const rawLine of stdout.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
     if (line.startsWith("Device:")) {
       flush();
-      const uri = /uri\s*=\s*(.+)$/.exec(line)?.[1]?.trim();
-      current = { uri };
+      current = { uri: /uri\s*=\s*(.+)$/.exec(line)?.[1]?.trim() };
       continue;
     }
     if (!current) continue;
     const field = /^(\S+)\s*=\s*(.*)$/.exec(line);
     if (!field) continue;
-    const key = field[1] ?? "";
-    const value = field[2] ?? "";
-    if (key === "class") current.kind = value.trim();
-    else if (key === "info") current.info = value.trim();
-    else if (key === "make-and-model") current.makeAndModel = value.trim();
+    if (field[1] === "class") current.kind = (field[2] ?? "").trim();
+    else if (field[1] === "info") current.info = (field[2] ?? "").trim();
+    else if (field[1] === "make-and-model") current.makeAndModel = (field[2] ?? "").trim();
   }
   flush();
 
-  // Fall back to the compact `lpinfo -v` form ("network ipp://...") if the long
-  // listing is not what this CUPS build produced.
   if (devices.length === 0) {
-    for (const line of result.stdout.split(/\r?\n/)) {
+    for (const line of stdout.split(/\r?\n/)) {
       const match = /^(\S+)\s+(\S+:\/\/\S+)$/.exec(line.trim());
       if (match && !seen.has(match[2]!)) {
         seen.add(match[2]!);
@@ -753,17 +745,76 @@ export async function discoverDevices(): Promise<DeviceView[]> {
       }
     }
   }
+  return devices;
+}
 
-  // Add mDNS-discovered IPP printers, which CUPS' own dnssd backend misses when
-  // the container borrows the host's Avahi.
-  for (const device of await avahiDevices()) {
-    if (!device.uri || seen.has(device.uri)) continue;
-    seen.add(device.uri);
-    devices.push(device);
+// ---------------------------------------------------------------------------
+// Device discovery cache
+// ---------------------------------------------------------------------------
+
+/** How long the API may serve the cache before kicking off a fresh scan. */
+const CACHE_MS = 3000;
+/** Keep a device listed this long after it was last seen, so a sleepy printer
+ *  does not flicker out of the list. */
+const STICKY_MS = 120_000;
+/** Per-command timeout for a scan (mDNS browse, lpinfo). */
+const SCAN_TIMEOUT_MS = 6000;
+
+interface CachedDevice {
+  device: DeviceView;
+  lastSeen: number;
+}
+
+const deviceCache = new Map<string, CachedDevice>();
+let lastScan = 0;
+let scanInFlight: Promise<void> | null = null;
+
+async function scanDevices(): Promise<void> {
+  const now = Date.now();
+  // mDNS and CUPS discovery run together, not one after the other.
+  const [avahi, lpinfo] = await Promise.all([
+    avahiDevices(),
+    run("lpinfo", ["-l", "-v"], { timeoutMs: SCAN_TIMEOUT_MS }),
+  ]);
+
+  for (const device of [...avahi, ...parseLpinfo(lpinfo.stdout)]) {
+    if (!device.uri || !device.uri.includes("://")) continue;
+    deviceCache.set(device.uri, { device, lastSeen: now });
   }
+  for (const [uri, entry] of deviceCache) {
+    if (now - entry.lastSeen > STICKY_MS) deviceCache.delete(uri);
+  }
+  lastScan = now;
+}
 
-  // Only surface real, usable device URIs.
-  return devices.filter((device) => device.uri.includes("://"));
+/** Kicks off a scan if one is not already running. */
+export function refreshDiscovery(): void {
+  if (!scanInFlight) {
+    scanInFlight = scanDevices().finally(() => {
+      scanInFlight = null;
+    });
+  }
+}
+
+/**
+ * Devices found recently, served from a warm in-memory cache.
+ *
+ * Scans run in the background every few seconds, so the API returns instantly
+ * and the UI can refresh continuously without waiting on `avahi-browse` or the
+ * slow `cups-deviced`. A device stays listed for a while after it stops
+ * answering, so a sleeping printer does not flicker in and out.
+ */
+export async function discoverDevices(force = false): Promise<DeviceView[]> {
+  const stale = Date.now() - lastScan > CACHE_MS;
+  if (force || deviceCache.size === 0) {
+    refreshDiscovery();
+    if (scanInFlight) await scanInFlight;
+  } else if (stale) {
+    refreshDiscovery();
+  }
+  return [...deviceCache.values()]
+    .map((entry) => entry.device)
+    .sort((a, b) => a.uri.localeCompare(b.uri));
 }
 
 export interface DriverView {

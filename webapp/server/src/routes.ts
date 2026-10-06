@@ -271,7 +271,10 @@ export function registerRoutes(app: FastifyInstance): void {
   });
 
   // ---- Discovery & drivers ----
-  app.get("/api/discover", async () => ({ devices: await discoverDevices() }));
+  app.get("/api/discover", async (request) => {
+    const fresh = String((request.query as { fresh?: string }).fresh ?? "") === "1";
+    return { devices: await discoverDevices(fresh) };
+  });
   app.get("/api/drivers", async () => ({ drivers: await listDrivers() }));
   app.get("/api/diagnostics", async () => collectDiagnostics());
   app.get("/api/diagnostics/network", async () => ({ probes: await networkDiagnostics() }));

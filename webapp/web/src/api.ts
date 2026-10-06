@@ -117,7 +117,8 @@ export const api = {
     });
   },
 
-  discover: () => request<{ devices: Device[] }>("/api/discover").then((r) => r.devices),
+  discover: (fresh = false) =>
+    request<{ devices: Device[] }>(`/api/discover${fresh ? "?fresh=1" : ""}`).then((r) => r.devices),
 
   drivers: () => request<{ drivers: Array<{ id: string; name: string }> }>("/api/drivers").then((r) => r.drivers),
 

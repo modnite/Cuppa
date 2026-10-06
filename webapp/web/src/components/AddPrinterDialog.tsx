@@ -38,6 +38,11 @@ function recommendedDriver(uri: string): string {
   return "Raw (no conversion)";
 }
 
+/** A raw network transport with no driverless/PPD path: socket, LPD or HTTP. */
+function isRawDevice(uri: string): boolean {
+  return /^(socket|lpd|http):/i.test(uri);
+}
+
 /** Reads a file as base64 (the data URL prefix is stripped). */
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -66,6 +71,7 @@ export function AddPrinterDialog({
   const [tab, setTab] = useState<Tab>("discovered");
   const [devices, setDevices] = useState<Device[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
   const [selected, setSelected] = useState<Device | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -90,11 +96,19 @@ export function AddPrinterDialog({
   const [dither, setDither] = useState<ThermalConfig["dither"]>("FLOYD_STEINBERG");
   const [invertPolarity, setInvertPolarity] = useState(false);
 
+  const refresh = async (force = false) => {
+    try {
+      setDevices(await api.discover(force));
+    } catch {
+      // Background refresh; do not surface transient errors.
+    }
+  };
+
   const scan = async () => {
     setScanning(true);
     setError("");
     try {
-      setDevices(await api.discover());
+      setDevices(await api.discover(true));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Discovery failed");
     } finally {
@@ -103,7 +117,11 @@ export function AddPrinterDialog({
   };
 
   useEffect(() => {
-    void scan();
+    void refresh();
+    // The backend keeps a warm cache, so this is a cheap poll that keeps the
+    // list live without a manual rescan.
+    const timer = setInterval(() => void refresh(), 4000);
+    return () => clearInterval(timer);
   }, []);
 
   const loadModels = async () => {
@@ -126,6 +144,11 @@ export function AddPrinterDialog({
       : models;
     return list.slice(0, 50);
   }, [models, modelFilter]);
+
+  const visibleDevices = useMemo(
+    () => (showRaw ? devices : devices.filter((device) => !isRawDevice(device.uri))),
+    [devices, showRaw]
+  );
 
   const activeUri = tab === "manual" ? manualUri.trim() : selected?.uri ?? "";
   const activeName = tab === "manual" ? name : name || (selected ? guessName(selected) : "");
@@ -211,10 +234,16 @@ export function AddPrinterDialog({
           ]}
         />
         {tab === "discovered" ? (
-          <button className="btn btn-sm" onClick={scan} disabled={scanning}>
-            {scanning ? <Spinner /> : <RefreshIcon size={14} />}
-            Scan
-          </button>
+          <div className="row" style={{ gap: 12 }}>
+            <label className="row small muted" style={{ gap: 6, cursor: "pointer" }}>
+              <input type="checkbox" checked={showRaw} onChange={(event) => setShowRaw(event.target.checked)} />
+              Show raw
+            </label>
+            <button className="btn btn-sm" onClick={scan} disabled={scanning}>
+              {scanning ? <Spinner /> : <RefreshIcon size={14} />}
+              Scan
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -227,16 +256,18 @@ export function AddPrinterDialog({
               <Spinner />
               Looking for printers on the network…
             </div>
-          ) : devices.length === 0 ? (
+          ) : visibleDevices.length === 0 ? (
             <div className="center">
               <SearchIcon size={30} />
-              <div>No printers found yet.</div>
+              <div>{devices.length === 0 ? "No printers found yet." : "Only raw devices found."}</div>
               <div className="small muted">
-                Make sure the printer is on and on the same network, then scan again.
+                {devices.length === 0
+                  ? "Make sure the printer is on and on the same network, then scan again."
+                  : "Tick “Show raw” to see socket/LPD entries."}
               </div>
             </div>
           ) : (
-            devices.map((device) => {
+            visibleDevices.map((device) => {
               const isSelected = selected?.uri === device.uri;
               const added = existing.some((p) => p.deviceUri === device.uri);
               const recommended = recommendedDriver(device.uri);
