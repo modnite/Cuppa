@@ -38,6 +38,7 @@ const SECTIONS: Array<{ key: string; label: string; hint: string }> = [
   { key: "usbNodes", label: "USB device nodes", hint: "Kernel /dev/bus/usb and /dev/usb nodes." },
   { key: "services", label: "Services", hint: "Processes running in the container (cupsd, Avahi, ipp-usb, the backend)." },
   { key: "mdns", label: "mDNS / discovery", hint: "D-Bus and Avahi sockets, and the _ipp._tcp services Avahi can see." },
+  { key: "advertisements", label: "Bonjour advertisements", hint: "Whether Cuppa is publishing its printers, and any publisher error." },
   { key: "cupsdConf", label: "cupsd.conf", hint: "The active CUPS scheduler configuration." },
   { key: "errorLog", label: "CUPS error log", hint: "The last 200 lines of /var/log/cups/error.log." },
 ];

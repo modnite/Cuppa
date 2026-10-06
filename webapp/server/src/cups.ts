@@ -6,6 +6,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { ENV } from "./env.js";
+import { advertisementStatus } from "./mdns.js";
 import { run, runOrThrow, runWithInput } from "./exec.js";
 import { log } from "./logger.js";
 import {
@@ -1040,6 +1041,7 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
     cupsdConf: config,
     services,
     mdns,
+    advertisements: advertisementStatus(),
     errorLog,
   };
 }

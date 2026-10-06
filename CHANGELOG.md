@@ -69,6 +69,9 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- Cuppa now captures and reports why advertising through the host's Avahi fails
+  (Diagnostics → **Bonjour advertisements**) and retries a publisher that exits,
+  so a printer silently dropping off the network is no longer invisible.
 - User-initiated prints (Test Print, Print a file) re-enable the queue first, so
   a printer stopped by an earlier error no longer holds new jobs as pending and
   looks like "nothing happened". The thermal USB transport is also selectable

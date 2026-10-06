@@ -155,6 +155,14 @@ const published = new Map<string, string>();
 /** Running `avahi-publish-service` children, keyed by "<queue>\0<type>". */
 const hostPublishers = new Map<string, { child: ChildProcess; signature: string }>();
 
+/** Last failure per key, so diagnostics can show why publishing failed. */
+const publisherErrors = new Map<string, string>();
+
+/** Most recent inputs, so a failed publisher can be retried. */
+let lastPrinters: PrinterView[] = [];
+let lastSettings: CuppaSettings | null = null;
+let hostPublishing = true;
+
 function publishArgs(printer: PrinterView, settings: CuppaSettings, type: string): string[] {
   const args: string[] = [];
   if (settings.airprintCompat) args.push(`--subtype=_universal._sub.${type}`);
@@ -170,6 +178,9 @@ function publishArgs(printer: PrinterView, settings: CuppaSettings, type: string
  * we ask the host's Avahi to publish these services for us.
  */
 function syncHostAvahi(printers: PrinterView[], settings: CuppaSettings): void {
+  lastPrinters = printers;
+  lastSettings = settings;
+
   const desired = new Map<string, string[]>();
   if (settings.advertiseEnabled) {
     for (const printer of printers) {
@@ -186,6 +197,7 @@ function syncHostAvahi(printers: PrinterView[], settings: CuppaSettings): void {
     if (!desired.has(key)) {
       entry.child.kill("SIGTERM");
       hostPublishers.delete(key);
+      publisherErrors.delete(key);
       changed = true;
     }
   }
@@ -195,19 +207,68 @@ function syncHostAvahi(printers: PrinterView[], settings: CuppaSettings): void {
     const existing = hostPublishers.get(key);
     if (existing?.signature === signature) continue;
     if (existing) existing.child.kill("SIGTERM");
-    const child = spawn("avahi-publish-service", args, { stdio: ["ignore", "ignore", "ignore"] });
-    child.on("exit", () => {
-      if (hostPublishers.get(key)?.child === child) hostPublishers.delete(key);
+    hostPublishers.delete(key);
+
+    // Capture stderr: when the host Avahi refuses publishing over the mounted
+    // D-Bus this is the only place the reason appears.
+    const child = spawn("avahi-publish-service", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-400);
+    });
+    child.on("error", (error) => {
+      publisherErrors.set(key, `spawn failed: ${error.message}`);
+      log.error(`Avahi publisher for ${key} failed to start`, error);
+    });
+    child.on("exit", (code) => {
+      if (hostPublishers.get(key)?.child !== child) return;
+      hostPublishers.delete(key);
+      const message = stderr.trim() || `exit ${code}`;
+      publisherErrors.set(key, message);
+      log.warn(`Avahi publisher for ${key} exited: ${message}`);
+      // A transient D-Bus hiccup should not leave a printer undiscoverable.
+      if (hostPublishing && lastSettings) {
+        const retry = setTimeout(() => {
+          if (hostPublishing && !hostPublishers.has(key)) {
+            log.info(`Re-publishing ${key} through the host Avahi`);
+            syncHostAvahi(lastPrinters, lastSettings!);
+          }
+        }, 5000);
+        retry.unref();
+      }
     });
     hostPublishers.set(key, { child, signature });
+    publisherErrors.delete(key);
     changed = true;
   }
 
   if (changed) log.info(`Published ${desired.size} service(s) through the host Avahi`);
 }
 
+/** Human-readable publisher state for the diagnostics page. */
+export function advertisementStatus(): string {
+  if (ENV.avahiMode !== "host") {
+    return `mode: container (static Avahi service files in ${ENV.avahiServicesDir})`;
+  }
+  const lines = [
+    `mode: host Avahi via ${process.env.DBUS_SYSTEM_BUS_ADDRESS ?? "(default system D-Bus)"}`,
+    `running publishers: ${hostPublishers.size}`,
+  ];
+  for (const [key, entry] of hostPublishers) {
+    lines.push(`  RUNNING  ${key.replace("\u0000", "  ")}  pid=${entry.child.pid ?? "?"}`);
+  }
+  for (const [key, error] of publisherErrors) {
+    if (!hostPublishers.has(key)) lines.push(`  FAILED   ${key.replace("\u0000", "  ")}  ${error}`);
+  }
+  if (hostPublishers.size === 0 && publisherErrors.size === 0) {
+    lines.push("  (nothing to publish — check that printers are shared and advertising is on)");
+  }
+  return lines.join("\n");
+}
+
 /** Stops any host-Avahi publishers (called on shutdown). */
 export function stopHostPublishers(): void {
+  hostPublishing = false;
   for (const entry of hostPublishers.values()) entry.child.kill("SIGTERM");
   hostPublishers.clear();
 }
