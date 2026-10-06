@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
 import { open } from "node:fs/promises";
 import http from "node:http";
@@ -644,44 +645,49 @@ export async function cancelJob(id: number): Promise<void> {
   await runOrThrow("cancel", [String(id)]);
 }
 
-/** Parses `avahi-browse -rtp <type>` lines into direct IPP device URIs. */
+/** Parses one resolved `avahi-browse -rp <type>` line into a direct IPP device. */
+export function parseAvahiLine(line: string, secure: boolean): DeviceView | null {
+  if (!line.startsWith("=")) return null;
+  const parts = line.split(";");
+  if (parts.length < 10) return null;
+  const name = parts[3] ?? "";
+  const address = parts[7] ?? "";
+  const port = parts[8] ?? "631";
+  const txt = parts.slice(9).join(";");
+  if (!address) return null;
+
+  const attrs = new Map<string, string>();
+  // TXT entries arrive as space-separated quoted pairs, e.g.
+  //   "rp=ipp/print" "ty=Brother MFC-L2717DW"
+  // so split on the quote boundaries to keep spaces inside values.
+  const quoted = txt.match(/"[^"]*"/g) ?? [];
+  if (quoted.length > 0) {
+    for (const raw of quoted) {
+      const entry = raw.slice(1, -1);
+      const equals = entry.indexOf("=");
+      if (equals > 0) attrs.set(entry.slice(0, equals), entry.slice(equals + 1));
+    }
+  } else {
+    for (const entry of txt.split(/[,\s]+/)) {
+      const equals = entry.indexOf("=");
+      if (equals > 0) attrs.set(entry.slice(0, equals), entry.slice(equals + 1));
+    }
+  }
+  const resource = (attrs.get("rp") ?? "ipp/print").replace(/^\//, "");
+  return {
+    uri: `${secure ? "ipps" : "ipp"}://${address}:${port}/${resource}`,
+    kind: "network",
+    makeAndModel: attrs.get("ty") ?? attrs.get("usb_MDL") ?? name,
+    info: name,
+  };
+}
+
+/** Parses a whole `avahi-browse -rtp <type>` capture. */
 export function parseAvahiBrowse(stdout: string, secure: boolean): DeviceView[] {
   const devices: DeviceView[] = [];
   for (const line of stdout.split(/\r?\n/)) {
-    if (!line.startsWith("=")) continue;
-    const parts = line.split(";");
-    if (parts.length < 10) continue;
-    const name = parts[3] ?? "";
-    const address = parts[7] ?? "";
-    const port = parts[8] ?? "631";
-    const txt = parts.slice(9).join(";");
-    if (!address) continue;
-
-    const attrs = new Map<string, string>();
-    // TXT entries arrive as space-separated quoted pairs, e.g.
-    //   "rp=ipp/print" "ty=Brother MFC-L2717DW"
-    // so split on the quote boundaries to keep spaces inside values.
-    const quoted = txt.match(/"[^"]*"/g) ?? [];
-    if (quoted.length > 0) {
-      for (const raw of quoted) {
-        const entry = raw.slice(1, -1);
-        const equals = entry.indexOf("=");
-        if (equals > 0) attrs.set(entry.slice(0, equals), entry.slice(equals + 1));
-      }
-    } else {
-      for (const entry of txt.split(/[,\s]+/)) {
-        const equals = entry.indexOf("=");
-        if (equals > 0) attrs.set(entry.slice(0, equals), entry.slice(equals + 1));
-      }
-    }
-    const resource = (attrs.get("rp") ?? "ipp/print").replace(/^\//, "");
-    const scheme = secure ? "ipps" : "ipp";
-    devices.push({
-      uri: `${scheme}://${address}:${port}/${resource}`,
-      kind: "network",
-      makeAndModel: attrs.get("ty") ?? attrs.get("usb_MDL") ?? name,
-      info: name,
-    });
+    const device = parseAvahiLine(line, secure);
+    if (device) devices.push(device);
   }
   return devices;
 }
@@ -749,16 +755,18 @@ function parseLpinfo(stdout: string): DeviceView[] {
 }
 
 // ---------------------------------------------------------------------------
-// Device discovery cache
+// Device discovery
 // ---------------------------------------------------------------------------
 
-/** How long the API may serve the cache before kicking off a fresh scan. */
+/** How long the API may serve the cache before kicking off a fresh USB scan. */
 const CACHE_MS = 3000;
 /** Keep a device listed this long after it was last seen, so a sleepy printer
  *  does not flicker out of the list. */
 const STICKY_MS = 120_000;
-/** Per-command timeout for a scan (mDNS browse, lpinfo). */
+/** Per-command timeout for a full scan. */
 const SCAN_TIMEOUT_MS = 6000;
+/** How often to re-scan CUPS for USB/socket devices. */
+const LPINFO_INTERVAL_MS = 8000;
 
 interface CachedDevice {
   device: DeviceView;
@@ -766,31 +774,104 @@ interface CachedDevice {
 }
 
 const deviceCache = new Map<string, CachedDevice>();
-let lastScan = 0;
+let lastLpinfoScan = 0;
 let scanInFlight: Promise<void> | null = null;
+let lpinfoTimer: NodeJS.Timeout | null = null;
+let mdnsChildren: ChildProcess[] = [];
+let stopping = false;
 
-async function scanDevices(): Promise<void> {
-  const now = Date.now();
-  // mDNS and CUPS discovery run together, not one after the other.
+function rememberDevice(device: DeviceView): void {
+  if (!device.uri || !device.uri.includes("://")) return;
+  deviceCache.set(device.uri, { device, lastSeen: Date.now() });
+}
+
+function pruneStale(now = Date.now()): void {
+  for (const [uri, entry] of deviceCache) {
+    if (now - entry.lastSeen > STICKY_MS) deviceCache.delete(uri);
+  }
+}
+
+/** One-shot CUPS scan for USB/socket/network devices. */
+async function scanLpinfo(): Promise<void> {
+  const result = await run("lpinfo", ["-l", "-v"], { timeoutMs: SCAN_TIMEOUT_MS });
+  for (const device of parseLpinfo(result.stdout)) rememberDevice(device);
+  lastLpinfoScan = Date.now();
+  pruneStale();
+}
+
+/** A complete one-shot scan (mDNS + CUPS), used on demand and at startup. */
+async function scanAll(): Promise<void> {
   const [avahi, lpinfo] = await Promise.all([
     avahiDevices(),
     run("lpinfo", ["-l", "-v"], { timeoutMs: SCAN_TIMEOUT_MS }),
   ]);
-
-  for (const device of [...avahi, ...parseLpinfo(lpinfo.stdout)]) {
-    if (!device.uri || !device.uri.includes("://")) continue;
-    deviceCache.set(device.uri, { device, lastSeen: now });
-  }
-  for (const [uri, entry] of deviceCache) {
-    if (now - entry.lastSeen > STICKY_MS) deviceCache.delete(uri);
-  }
-  lastScan = now;
+  for (const device of [...avahi, ...parseLpinfo(lpinfo.stdout)]) rememberDevice(device);
+  lastLpinfoScan = Date.now();
+  pruneStale();
 }
 
-/** Kicks off a scan if one is not already running. */
+/**
+ * Keeps `avahi-browse` running and folds each resolved service into the cache
+ * the instant mDNS announces it, so a printer appears without waiting for a
+ * timer. The process is restarted if it ever exits.
+ */
+function startMdnsBrowser(): void {
+  if (stopping || mdnsChildren.length > 0) return;
+  for (const { type, secure } of [
+    { type: "_ipp._tcp", secure: false },
+    { type: "_ipps._tcp", secure: true },
+  ]) {
+    const child = spawn("avahi-browse", ["-rp", type], { stdio: ["ignore", "pipe", "ignore"] });
+    let buffer = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString();
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const device = parseAvahiLine(line, secure);
+        if (device) rememberDevice(device);
+      }
+    });
+    child.on("exit", () => {
+      mdnsChildren = mdnsChildren.filter((candidate) => candidate !== child);
+      if (!stopping) {
+        const restart = setTimeout(() => startMdnsBrowser(), 3000);
+        restart.unref();
+      }
+    });
+    child.on("error", () => undefined);
+    mdnsChildren.push(child);
+  }
+}
+
+/** Starts continuous discovery: a streaming mDNS browse plus periodic CUPS scans. */
+export function startDiscovery(): void {
+  stopping = false;
+  startMdnsBrowser();
+  if (!lpinfoTimer) {
+    lpinfoTimer = setInterval(() => {
+      void scanLpinfo();
+    }, LPINFO_INTERVAL_MS);
+    lpinfoTimer.unref();
+  }
+  void scanAll();
+}
+
+/** Stops continuous discovery (called on shutdown). */
+export function stopDiscovery(): void {
+  stopping = true;
+  for (const child of mdnsChildren) child.kill("SIGTERM");
+  mdnsChildren = [];
+  if (lpinfoTimer) {
+    clearInterval(lpinfoTimer);
+    lpinfoTimer = null;
+  }
+}
+
+/** Kicks off a CUPS scan if one is not already running. */
 export function refreshDiscovery(): void {
   if (!scanInFlight) {
-    scanInFlight = scanDevices().finally(() => {
+    scanInFlight = scanLpinfo().finally(() => {
       scanInFlight = null;
     });
   }
@@ -799,17 +880,20 @@ export function refreshDiscovery(): void {
 /**
  * Devices found recently, served from a warm in-memory cache.
  *
- * Scans run in the background every few seconds, so the API returns instantly
- * and the UI can refresh continuously without waiting on `avahi-browse` or the
- * slow `cups-deviced`. A device stays listed for a while after it stops
- * answering, so a sleeping printer does not flicker in and out.
+ * mDNS is streamed continuously and CUPS is re-scanned on a short timer, so the
+ * API returns instantly and a printer shows up as soon as it announces itself.
+ * A device stays listed for a while after it stops answering, so a sleeping
+ * printer does not flicker in and out.
  */
 export async function discoverDevices(force = false): Promise<DeviceView[]> {
-  const stale = Date.now() - lastScan > CACHE_MS;
   if (force || deviceCache.size === 0) {
-    refreshDiscovery();
-    if (scanInFlight) await scanInFlight;
-  } else if (stale) {
+    if (!scanInFlight) {
+      scanInFlight = scanAll().finally(() => {
+        scanInFlight = null;
+      });
+    }
+    await scanInFlight;
+  } else if (Date.now() - lastLpinfoScan > CACHE_MS) {
     refreshDiscovery();
   }
   return [...deviceCache.values()]

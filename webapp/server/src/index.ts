@@ -7,7 +7,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
 import { refreshAdvertisements } from "./advertise.js";
 import { auth } from "./auth.js";
-import { migrateThermalUsbQueues, refreshDiscovery } from "./cups.js";
+import { migrateThermalUsbQueues, startDiscovery, stopDiscovery } from "./cups.js";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { registerRoutes } from "./routes.js";
@@ -82,10 +82,16 @@ async function main(): Promise<void> {
   }, 60_000);
   timer.unref();
 
-  // Keep the discovery cache warm so the Add-printer list is instant.
-  const discoveryTimer = setInterval(() => refreshDiscovery(), 6000);
-  discoveryTimer.unref();
-  refreshDiscovery();
+  // Continuous discovery: a streaming mDNS browse plus periodic CUPS scans, so
+  // the Add-printer list updates on its own.
+  startDiscovery();
+
+  const shutdown = (): void => {
+    stopDiscovery();
+    process.exit(0);
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 
   await app.listen({ host: "0.0.0.0", port: ENV.webPort });
   log.info(`Cuppa web UI listening on http://0.0.0.0:${ENV.webPort}`);

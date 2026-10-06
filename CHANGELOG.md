@@ -40,11 +40,12 @@ Notable changes to Cuppa, newest first. Loosely follows
   dialect was previously fixed to TSPL in the UI.
 
 ### Changed
-- Printer discovery is much faster and now effectively live. Scans run in the
-  background every few seconds into a warm cache, and the API returns instantly,
-  so the Add-printer list and the Diagnostics discovered list update on their own
-  without a manual rescan. A printer stays listed for a couple of minutes after
-  it stops answering, so a sleeping printer no longer flickers in and out.
+- Printer discovery is live. `avahi-browse` runs continuously and a printer is
+  added the instant mDNS announces it, instead of waiting for a timed scan to
+  finish; CUPS is re-scanned on a short timer for USB/socket devices. The API
+  reads a warm cache, so the Add-printer and Diagnostics lists update on their
+  own. A printer stays listed for a couple of minutes after it stops answering,
+  so a sleeping printer no longer flickers in and out.
 - Raw network devices (socket/LPD/HTTP) are hidden from the Add-printer and
   Diagnostics lists by default; a **Show raw** toggle reveals them.
 - The image is built for **`linux/amd64` only** (the office NAS is an Intel

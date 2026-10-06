@@ -118,9 +118,9 @@ export function AddPrinterDialog({
 
   useEffect(() => {
     void refresh();
-    // The backend keeps a warm cache, so this is a cheap poll that keeps the
-    // list live without a manual rescan.
-    const timer = setInterval(() => void refresh(), 4000);
+    // The backend streams mDNS into a warm cache, so this is a cheap poll that
+    // keeps the list live without a manual rescan.
+    const timer = setInterval(() => void refresh(), 2000);
     return () => clearInterval(timer);
   }, []);
 
