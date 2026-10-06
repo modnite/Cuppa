@@ -38,6 +38,10 @@ Notable changes to Cuppa, newest first. Loosely follows
   dialect was previously fixed to TSPL in the UI.
 
 ### Fixed
+- User-initiated prints (Test Print, Print a file) re-enable the queue first, so
+  a printer stopped by an earlier error no longer holds new jobs as pending and
+  looks like "nothing happened". The thermal USB transport is also selectable
+  now (`CUPPA_USB_TRANSPORT=usblp` default, `libusb` for clones that need it).
 - **Thermal label printers now print a test page.** The Rollo X1038 (and the
   Xprinter/Munbyn/Phomemo rebrands, IEEE-1284 id `CMD:XPP,XL`) only print TSPL
   **BITMAP** jobs; the TEXT/BOX/BARCODE/QRCODE test label was accepted and then

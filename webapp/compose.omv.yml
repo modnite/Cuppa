@@ -28,6 +28,8 @@ services:
       # auto = use the host's Avahi if it has one (OMV does), otherwise run Avahi
       # in the container. Only one responder can own port 5353 on a host.
       CUPPA_AVAHI_MODE: auto
+      # USB transport for thermal label printers: usblp (default) or libusb.
+      CUPPA_USB_TRANSPORT: ${CUPPA_USB_TRANSPORT:-usblp}
 
     volumes:
       # Cuppa settings, printer names and thermal config persist here.

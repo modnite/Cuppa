@@ -28,6 +28,9 @@ services:
       # otherwise runs Avahi inside the container. Force "host" or "container"
       # only if you know better.
       CUPPA_AVAHI_MODE: ${CUPPA_AVAHI_MODE:-auto}
+      # USB transport for thermal label printers: "usblp" (default, the Rollo
+      # X1038 path) or "libusb". Only change it if a clone needs the other.
+      CUPPA_USB_TRANSPORT: ${CUPPA_USB_TRANSPORT:-usblp}
 
     volumes:
       # Cuppa settings and printer names persist here.

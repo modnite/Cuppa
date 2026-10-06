@@ -485,8 +485,19 @@ export async function setAccepting(queue: string, accepting: boolean): Promise<v
   await runOrThrow(accepting ? "cupsaccept" : "cupsreject", [queue]);
 }
 
+/**
+ * A queue stopped by an earlier error holds new jobs as pending and never runs
+ * them, which looks exactly like "nothing happened". User-initiated prints
+ * re-enable the queue first so that cannot silently block a print.
+ */
+async function ensureEnabled(queue: string): Promise<void> {
+  await run("cupsenable", [queue]);
+  await run("cupsaccept", [queue]);
+}
+
 /** Sends a file to a queue through CUPS' own `lp` client. */
 export async function printFile(queue: string, filePath: string, title: string): Promise<void> {
+  await ensureEnabled(queue);
   const output = await runOrThrow("lp", ["-d", queue, "-t", title, filePath], { timeoutMs: 60_000 });
   log.info(`Submitted "${title}" to ${queue}: ${output.trim()}`);
 }
@@ -511,6 +522,7 @@ export async function testPrint(queue: string): Promise<void> {
     const file = path.join(os.tmpdir(), `cuppa-thermal-test-${Date.now()}.tspl`);
     writeFileSync(file, generateThermalTestLabel(thermalConfig, queue));
     try {
+      await ensureEnabled(queue);
       const output = await runOrThrow("lp", ["-d", queue, "-o", "raw", "-t", "Cuppa Thermal Test", file], { timeoutMs: 60_000 });
       log.info(`Submitted thermal test label to ${queue}: ${output.trim()}`);
     } finally {

@@ -5,20 +5,15 @@
  * cuppa-usb — a CUPS backend for USB thermal label printers (Rollo X1038 and
  * the Xprinter/Munbyn/Phomemo rebrands).
  *
- * Two hard-won facts drive this backend:
+ * CUPS invokes a backend as: backend job-id user title copies options [file]
+ * and passes the device URI in DEVICE_URI, not in argv.
  *
- *  1. CUPS invokes a backend as: backend job-id user title copies options [file]
- *     and passes the device URI in DEVICE_URI, not in argv.
- *
- *  2. These printers report an IEEE-1284 id of "CMD:XPP,XL" and are TSPL, but
- *     CUPS' stock USB backend uses libusb and detaches the kernel usblp driver.
- *     The printer then ACKs the transfer, prints nothing and wedges. The path
- *     that works is the kernel usblp character device, /dev/usb/lpN.
- *
- * So by default this backend writes the job straight to the matching
- * /dev/usb/lpN in 1 KiB chunks with a short pause (these printers also drop
- * large unpaced writes). It only falls back to the libusb backend when no usblp
- * node exists, because that fallback can wedge the printer.
+ * Transport (CUPPA_USB_TRANSPORT):
+ *   usblp (default) — write straight to the kernel /dev/usb/lpN node, paced.
+ *     This is the path proven on the Rollo X1038: the printer accepts a whole
+ *     BITMAP job over usblp and fires the head.
+ *   libusb — spawn the stock CUPS `usb` backend instead. Kept selectable for
+ *     clones that only print through libusb.
  */
 
 const { spawn } = require("node:child_process");
@@ -27,9 +22,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const REAL_BACKEND = process.env.CUPPA_USB_BACKEND || "/usr/lib/cups/backend/usb";
+const TRANSPORT = (process.env.CUPPA_USB_TRANSPORT || "usblp").toLowerCase();
 const CHUNK_SIZE = 1024;
 const INTER_CHUNK_MS = 10;
-// Give the kernel/child time to settle before the first write.
 const START_DELAY_MS = Number(process.env.CUPPA_USB_START_DELAY_MS ?? 250);
 const MAX_JOB_BYTES = 256 * 1024 * 1024;
 
@@ -53,11 +48,7 @@ function serialFromUri(value) {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-/**
- * The /dev/usb/lpN node for this printer. Matches on the USB serial when it can
- * (sysfs exposes it a few directories up from the usbmisc node) and otherwise
- * falls back to the first node, which is right for a single USB printer.
- */
+/** The /dev/usb/lpN node for this printer, matching on the USB serial if possible. */
 function findLpDevice(serial) {
   const base = "/sys/class/usbmisc";
   let names;
@@ -115,7 +106,7 @@ async function writeKernelDevice(device, data) {
   }
 }
 
-/** Last resort: the stock libusb backend, which detaches usblp and can wedge. */
+/** Spawns the stock CUPS USB backend and feeds it the job, 1 KiB at a time. */
 function runLibusbBackend(data) {
   let backChannel = "ignore";
   try {
@@ -181,19 +172,21 @@ function runLibusbBackend(data) {
   }
   const data = Buffer.concat(chunks);
 
-  const device = process.env.CUPPA_USB_DEVICE || findLpDevice(serialFromUri(uri));
-  if (device && fs.existsSync(device)) {
-    try {
-      await writeKernelDevice(device, data);
-      process.stderr.write(`DEBUG: cuppa-usb wrote ${data.length} bytes to ${device}\n`);
-      process.exit(0);
-    } catch (error) {
-      process.stderr.write(
-        `WARNING: cuppa-usb kernel write to ${device} failed (${error.message}); falling back to libusb\n`
-      );
+  if (TRANSPORT === "usblp") {
+    const device = process.env.CUPPA_USB_DEVICE || findLpDevice(serialFromUri(uri));
+    if (device && fs.existsSync(device)) {
+      try {
+        await writeKernelDevice(device, data);
+        process.stderr.write(`DEBUG: cuppa-usb wrote ${data.length} bytes to ${device}\n`);
+        process.exit(0);
+      } catch (error) {
+        process.stderr.write(
+          `WARNING: cuppa-usb kernel write to ${device} failed (${error.message}); using libusb\n`
+        );
+      }
+    } else {
+      process.stderr.write("WARNING: cuppa-usb found no usblp device; using libusb\n");
     }
-  } else {
-    process.stderr.write("WARNING: cuppa-usb found no usblp device; falling back to libusb\n");
   }
 
   runLibusbBackend(data);
