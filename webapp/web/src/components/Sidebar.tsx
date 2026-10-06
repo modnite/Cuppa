@@ -23,7 +23,7 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <CuppaIcon size={30} />
+        <CuppaIcon size={40} radius={11} />
         <div>
           <div className="brand-name">Cuppa</div>
           <div className="brand-sub">Print server</div>

@@ -41,7 +41,8 @@ Notable changes to Cuppa, newest first. Loosely follows
 
 ### Changed
 - The Cuppa mark — sidebar, login screen and browser tab — now takes its
-  background colour from the selected accent instead of a fixed teal.
+  background colour from the selected accent instead of a fixed teal, and is
+  larger so its detail is legible.
 - Printer discovery is live. `avahi-browse` runs continuously and a printer is
   added the instant mDNS announces it, instead of waiting for a timed scan to
   finish; CUPS is re-scanned on a short timer for USB/socket devices. The API

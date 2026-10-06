@@ -26,7 +26,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="login-wrap">
       <form className="card login-card" onSubmit={submit}>
-        <CuppaIcon size={54} radius={13} />
+        <CuppaIcon size={64} radius={15} />
         <h1>Cuppa</h1>
         <p>Enter the admin password to manage this print server.</p>
         <div className="field">
