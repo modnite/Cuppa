@@ -78,6 +78,8 @@ export interface JobView {
 export interface StatusView {
   ok: boolean;
   cupsVersion: string;
+  /** Cuppa's own version (the webapp image build). */
+  cuppaVersion: string;
   cupsRunning: boolean;
   host: string;
   ip: string;

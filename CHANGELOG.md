@@ -25,6 +25,8 @@ Notable changes to Cuppa, newest first. Loosely follows
   Brother MFC-L2717DW, for example) now appear with a direct IPP address.
 - A printer can be added with a **user-supplied PPD**, or an existing queue can
   have one installed, instead of choosing from the driver list.
+- The webapp shows its own version in Settings → About and the sidebar, baked in
+  from the image tag at build time, so it is obvious which build is running.
 - A one-click **USB self-test**. It sends a diagnostic label straight to a USB
   printer through the stock backend, the paced Cuppa backend and the kernel
   device node, bypassing the scheduler, so a broken queue can be told apart from

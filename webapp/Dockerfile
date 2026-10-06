@@ -31,6 +31,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     CUPPA_IPP_PORT=631 \
     CUPPA_WEB_ROOT=/app/web
 
+# The version is baked in at build time (CI passes the git tag) and shown in
+# the UI, so it is obvious which build is running.
+ARG CUPPA_VERSION=dev
+ENV CUPPA_VERSION=${CUPPA_VERSION}
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         cups \

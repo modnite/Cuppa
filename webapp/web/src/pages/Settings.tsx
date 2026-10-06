@@ -224,6 +224,8 @@ export function Settings({
         <dl className="kv">
           <dt>Product</dt>
           <dd>Cuppa Print Server (web)</dd>
+          <dt>Version</dt>
+          <dd>{status?.cuppaVersion ?? "—"}</dd>
           <dt>CUPS</dt>
           <dd>{status?.cupsVersion ?? "—"}</dd>
           <dt>IPP address</dt>

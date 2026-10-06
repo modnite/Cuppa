@@ -8,6 +8,8 @@ function int(value: string | undefined, fallback: number): number {
 }
 
 export const ENV = {
+  /** Cuppa's own version, baked into the image at build time. */
+  version: process.env.CUPPA_VERSION ?? "dev",
   /** Where Cuppa keeps its settings and printer metadata. */
   dataDir: process.env.CUPPA_DATA_DIR ?? "/data",
   /** Port the web UI/API listens on. */

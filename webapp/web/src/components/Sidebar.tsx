@@ -54,7 +54,7 @@ export function Sidebar({
           <span>{online ? "CUPS running" : "CUPS unavailable"}</span>
         </div>
         <div className="sidebar-version">
-          {status ? `v${status.cupsVersion} · port ${status.ippPort}` : "Connecting…"}
+          {status ? `Cuppa ${status.cuppaVersion} · CUPS ${status.cupsVersion}` : "Connecting…"}
         </div>
       </div>
     </aside>

@@ -3,6 +3,7 @@ export type Page = "dashboard" | "printers" | "jobs" | "diagnostics" | "settings
 export interface Status {
   ok: boolean;
   cupsVersion: string;
+  cuppaVersion: string;
   cupsRunning: boolean;
   host: string;
   ip: string;

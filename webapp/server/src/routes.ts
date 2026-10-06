@@ -94,6 +94,7 @@ export function registerRoutes(app: FastifyInstance): void {
     const status: StatusView = {
       ok: probe.running,
       cupsVersion: probe.version,
+      cuppaVersion: ENV.version,
       cupsRunning: probe.running,
       host: hostName(),
       ip: primaryIPv4(),
