@@ -762,14 +762,14 @@ function parseLpinfo(stdout: string): DeviceView[] {
 /** How long the API may serve the cache before kicking off a fresh USB scan. */
 const CACHE_MS = 3000;
 /** Keep a device listed this long after it was last seen, so a sleepy printer
- *  does not flicker out of the list. */
-const STICKY_MS = 120_000;
+ *  does not flicker out of the list. Must exceed the sweep interval. */
+const STICKY_MS = 300_000;
 /** Per-command timeout for a full scan. */
 const SCAN_TIMEOUT_MS = 6000;
 /** How often to re-scan CUPS for USB/socket devices. */
 const LPINFO_INTERVAL_MS = 8000;
 /** How often to sweep the local subnet for printers whose mDNS is broken. */
-const SWEEP_INTERVAL_MS = 180_000;
+const SWEEP_INTERVAL_MS = 120_000;
 
 interface CachedDevice {
   device: DeviceView;
