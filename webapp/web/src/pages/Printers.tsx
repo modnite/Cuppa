@@ -143,8 +143,8 @@ export function Printers({ notify }: { notify: Notify }) {
                   {printer.driver ? <span className="pill">{printer.driver}</span> : null}
                   {printer.color ? <span className="pill">Color</span> : null}
                   {!printer.accepting ? <span className="pill warn">Not accepting jobs</span> : null}
-                  <CopyButton value={printer.uri} />
                 </div>
+                <CopyButton value={printer.uri} />
               </div>
               <div className="printer-actions">
                 <div className="row" style={{ gap: 6 }}>

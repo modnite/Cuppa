@@ -47,6 +47,10 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The Cuppa mark — sidebar, login screen and browser tab — now takes its
   background colour from the selected accent instead of a fixed teal, and is
   larger so its detail is legible.
+- The printer address copy chip is now its own full-width row, so it renders
+  consistently instead of being squeezed (and cut off) on cards with more
+  controls, such as a thermal printer.
+- Diagnostics reports the subnet sweep (hosts probed, printers found).
 - Printer discovery is live. `avahi-browse` runs continuously and a printer is
   added the instant mDNS announces it, instead of waiting for a timed scan to
   finish; CUPS is re-scanned on a short timer for USB/socket devices. The API

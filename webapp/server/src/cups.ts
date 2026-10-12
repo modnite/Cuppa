@@ -783,6 +783,8 @@ let lpinfoTimer: NodeJS.Timeout | null = null;
 let sweepTimer: NodeJS.Timeout | null = null;
 let mdnsChildren: ChildProcess[] = [];
 let stopping = false;
+/** Summary of the last subnet sweep, for diagnostics. */
+let lastSweep = "(not run yet)";
 
 function rememberDevice(device: DeviceView): void {
   if (!device.uri || !device.uri.includes("://")) return;
@@ -813,21 +815,28 @@ async function scanLpinfo(): Promise<void> {
 async function sweepSubnet(): Promise<void> {
   const self = primaryIPv4();
   const parts = self.split(".");
-  if (parts.length !== 4 || self.startsWith("127.")) return;
+  if (parts.length !== 4 || self.startsWith("127.")) {
+    lastSweep = `skipped (no usable IPv4: ${self})`;
+    return;
+  }
   const base = `${parts[0]}.${parts[1]}.${parts[2]}`;
 
   const hosts: string[] = [];
   for (let octet = 1; octet <= 254; octet += 1) hosts.push(`${base}.${octet}`);
 
   let cursor = 0;
+  let probed = 0;
+  let found = 0;
   const worker = async (): Promise<void> => {
     while (cursor < hosts.length) {
       const host = hosts[cursor++]!;
       if (host === self) continue;
-      const tcp = await tcpProbe(host, 631, 400);
+      probed += 1;
+      const tcp = await tcpProbe(host, 631, 800);
       if (!tcp.ok) continue;
       const ipp = await ippProbe(host, 631, false, IPP_PATHS);
       if (ipp.ok) {
+        found += 1;
         rememberDevice({
           uri: `ipp://${host}:631${ipp.path}`,
           kind: "network",
@@ -838,6 +847,8 @@ async function sweepSubnet(): Promise<void> {
     }
   };
   await Promise.all(Array.from({ length: 48 }, worker));
+  lastSweep = `${base}.0/24 — probed ${probed}, found ${found} IPP printer(s)`;
+  log.info(`Subnet sweep: ${lastSweep}`);
 }
 
 /** A complete one-shot scan (mDNS + CUPS + subnet sweep), used on demand. */
@@ -1029,6 +1040,7 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
   return {
     devices,
     discovered,
+    sweep: lastSweep,
     queues,
     printers,
     jobs,
