@@ -1,35 +1,22 @@
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
+import { mdnsAdvertiser, type AdvertisedService } from "./mdns-internal.js";
 import type { CuppaSettings, PrinterView } from "./types.js";
 
 /**
- * Publishes each shared queue to Bonjour/DNS-SD through Avahi static service
- * files.
+ * Publishes each shared queue over mDNS/DNS-SD.
  *
- * We do this ourselves rather than letting cupsd advertise, because the whole
- * point is the exact service name the user chose with " (Cuppa)" on the end.
- * cupsd's own naming derives from `printer-info` and may decorate it further
- * depending on the host, which would break that promise. cupsd's built-in
- * DNSSD is disabled in `cupsd.conf` so there are never duplicate records.
+ * The records mirror the Android app's `NetworkPrinterAdvertiser` so the same
+ * printer shared from either front end looks identical to macOS, iOS and
+ * Android clients: the service name is exactly the user's chosen name with
+ * " (Cuppa)" on the end, and the TXT records carry the driverless formats.
  *
- * The TXT records mirror the Android app's `NetworkPrinterAdvertiser` so the
- * same printer shared from either front end looks identical to macOS, iOS and
- * Android clients.
+ * Advertising is done by Cuppa's own advertiser (see `mdns-internal.ts`) rather
+ * than the host's Avahi. On some NAS firmware a container is allowed to *browse*
+ * the host's Avahi but refused permission to *publish* through it, which
+ * silently left the printers undiscoverable. Announcing the records directly
+ * removes that dependency.
  */
-
-const PREFIX = "cuppa-";
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 /** Driverless formats worth advertising, in preference order. */
 const PREFERRED_FORMATS = [
@@ -83,255 +70,56 @@ function txtRecords(printer: PrinterView, settings: CuppaSettings): string[] {
   return records;
 }
 
-function serviceGroup(printer: PrinterView, settings: CuppaSettings): string {
-  const name = escapeXml(printer.advertisedName);
-  const txt = txtRecords(printer, settings)
-    .map((record) => `      <txt-record>${escapeXml(record)}</txt-record>`)
-    .join("\n");
-  const airprintSubtype = settings.airprintCompat
-    ? "      <subtype>_universal._sub._ipp._tcp</subtype>\n"
-    : "";
-  const ippsSubtype = settings.airprintCompat
-    ? "      <subtype>_universal._sub._ipps._tcp</subtype>\n"
-    : "";
-
-  const ippService = [
-    "    <service>",
-    "      <type>_ipp._tcp</type>",
-    airprintSubtype + `      <port>${ENV.ippPort}</port>`,
-    txt,
-    "    </service>",
-  ]
-    .filter((line) => line.length > 0)
-    .join("\n");
-
-  const ippsService = settings.tlsEnabled
-    ? [
-        "    <service>",
-        "      <type>_ipps._tcp</type>",
-        ippsSubtype + `      <port>${ENV.ippPort}</port>`,
-        txt,
-        "    </service>",
-      ]
-        .filter((line) => line.length > 0)
-        .join("\n")
-    : "";
-
-  return [
-    '<?xml version="1.0" standalone=\'no\'?>',
-    '<!DOCTYPE service-group SYSTEM "avahi-service.dtd">',
-    "<service-group>",
-    `  <name>${name}</name>`,
-    ippService,
-    ippsService,
-    "</service-group>",
-    "",
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
-}
-
-function reloadAvahi(): void {
-  const pidFiles = ["/run/avahi-daemon/pid", "/var/run/avahi-daemon/pid"];
-  for (const pidFile of pidFiles) {
-    try {
-      if (!existsSync(pidFile)) continue;
-      const pid = Number.parseInt(readFileSync(pidFile, "utf8"), 10);
-      if (Number.isFinite(pid) && pid > 0) {
-        process.kill(pid, "SIGHUP");
-        log.debug(`Signalled Avahi (pid ${pid}) to reload service definitions`);
-        return;
-      }
-    } catch (error) {
-      log.debug(`Avahi reload via ${pidFile} failed: ${String(error)}`);
+/** The services to advertise for the current printer list. */
+function desiredServices(printers: PrinterView[], settings: CuppaSettings): AdvertisedService[] {
+  const services: AdvertisedService[] = [];
+  if (!settings.advertiseEnabled) return services;
+  for (const printer of printers) {
+    if (!printer.shared) continue;
+    services.push({
+      name: printer.advertisedName,
+      type: "_ipp._tcp",
+      port: ENV.ippPort,
+      txt: txtRecords(printer, settings),
+      airprint: settings.airprintCompat,
+    });
+    if (settings.tlsEnabled) {
+      services.push({
+        name: printer.advertisedName,
+        type: "_ipps._tcp",
+        port: ENV.ippPort,
+        txt: txtRecords(printer, settings),
+        airprint: settings.airprintCompat,
+      });
     }
   }
-  log.debug("Avahi is not running; service files were written but not reloaded");
+  return services;
 }
 
-/** Content last written per queue, so a periodic refresh does not churn Avahi. */
-const published = new Map<string, string>();
-
-/** Running `avahi-publish-service` children, keyed by "<queue>\0<type>". */
-const hostPublishers = new Map<string, { child: ChildProcess; signature: string }>();
-
-/** Last failure per key, so diagnostics can show why publishing failed. */
-const publisherErrors = new Map<string, string>();
-
-/** Most recent inputs, so a failed publisher can be retried. */
-let lastPrinters: PrinterView[] = [];
-let lastSettings: CuppaSettings | null = null;
-let hostPublishing = true;
-
-function publishArgs(printer: PrinterView, settings: CuppaSettings, type: string): string[] {
-  const args: string[] = [];
-  if (settings.airprintCompat) args.push(`--subtype=_universal._sub.${type}`);
-  args.push(printer.advertisedName, type, String(ENV.ippPort), ...txtRecords(printer, settings));
-  return args;
-}
+/** Content last advertised, so a periodic refresh does not re-announce needlessly. */
+let lastSignature = "";
 
 /**
- * Publishes records through the host's Avahi over its D-Bus.
- *
- * Used when the host already runs an mDNS responder: running a second Avahi in
- * the container would fight it for port 5353 and lose most multicast, so instead
- * we ask the host's Avahi to publish these services for us.
- */
-function syncHostAvahi(printers: PrinterView[], settings: CuppaSettings): void {
-  lastPrinters = printers;
-  lastSettings = settings;
-
-  const desired = new Map<string, string[]>();
-  if (settings.advertiseEnabled) {
-    for (const printer of printers) {
-      if (!printer.shared) continue;
-      desired.set(`${printer.queue}\u0000_ipp._tcp`, publishArgs(printer, settings, "_ipp._tcp"));
-      if (settings.tlsEnabled) {
-        desired.set(`${printer.queue}\u0000_ipps._tcp`, publishArgs(printer, settings, "_ipps._tcp"));
-      }
-    }
-  }
-
-  let changed = false;
-  for (const [key, entry] of hostPublishers) {
-    if (!desired.has(key)) {
-      entry.child.kill("SIGTERM");
-      hostPublishers.delete(key);
-      publisherErrors.delete(key);
-      changed = true;
-    }
-  }
-
-  for (const [key, args] of desired) {
-    const signature = args.join("\u0000");
-    const existing = hostPublishers.get(key);
-    if (existing?.signature === signature) continue;
-    if (existing) existing.child.kill("SIGTERM");
-    hostPublishers.delete(key);
-
-    // Capture stderr: when the host Avahi refuses publishing over the mounted
-    // D-Bus this is the only place the reason appears.
-    const child = spawn("avahi-publish-service", args, { stdio: ["ignore", "ignore", "pipe"] });
-    let stderr = "";
-    child.stderr?.on("data", (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString()).slice(-400);
-    });
-    child.on("error", (error) => {
-      publisherErrors.set(key, `spawn failed: ${error.message}`);
-      log.error(`Avahi publisher for ${key} failed to start`, error);
-    });
-    child.on("exit", (code) => {
-      if (hostPublishers.get(key)?.child !== child) return;
-      hostPublishers.delete(key);
-      const message = stderr.trim() || `exit ${code}`;
-      publisherErrors.set(key, message);
-      log.warn(`Avahi publisher for ${key} exited: ${message}`);
-      // A transient D-Bus hiccup should not leave a printer undiscoverable.
-      if (hostPublishing && lastSettings) {
-        const retry = setTimeout(() => {
-          if (hostPublishing && !hostPublishers.has(key)) {
-            log.info(`Re-publishing ${key} through the host Avahi`);
-            syncHostAvahi(lastPrinters, lastSettings!);
-          }
-        }, 5000);
-        retry.unref();
-      }
-    });
-    hostPublishers.set(key, { child, signature });
-    publisherErrors.delete(key);
-    changed = true;
-  }
-
-  if (changed) log.info(`Published ${desired.size} service(s) through the host Avahi`);
-}
-
-/** Human-readable publisher state for the diagnostics page. */
-export function advertisementStatus(): string {
-  if (ENV.avahiMode !== "host") {
-    return `mode: container (static Avahi service files in ${ENV.avahiServicesDir})`;
-  }
-  const lines = [
-    `mode: host Avahi via ${process.env.DBUS_SYSTEM_BUS_ADDRESS ?? "(default system D-Bus)"}`,
-    `running publishers: ${hostPublishers.size}`,
-  ];
-  for (const [key, entry] of hostPublishers) {
-    lines.push(`  RUNNING  ${key.replace("\u0000", "  ")}  pid=${entry.child.pid ?? "?"}`);
-  }
-  for (const [key, error] of publisherErrors) {
-    if (!hostPublishers.has(key)) lines.push(`  FAILED   ${key.replace("\u0000", "  ")}  ${error}`);
-  }
-  if (hostPublishers.size === 0 && publisherErrors.size === 0) {
-    lines.push("  (nothing to publish — check that printers are shared and advertising is on)");
-  }
-  return lines.join("\n");
-}
-
-/** Stops any host-Avahi publishers (called on shutdown). */
-export function stopHostPublishers(): void {
-  hostPublishing = false;
-  for (const entry of hostPublishers.values()) entry.child.kill("SIGTERM");
-  hostPublishers.clear();
-}
-
-/**
- * Rewrites every Cuppa Avahi record from the current printer list. Safe to call
- * after any change and on a timer: files are only touched when their content
- * actually changed, and Avahi is only signalled when something did.
+ * Rebuilds the advertised records from the current printer list. Safe to call
+ * after any change and on a timer; only an actual change re-announces.
  */
 export function syncAdvertisements(printers: PrinterView[], settings: CuppaSettings): void {
-  if (ENV.avahiMode === "host") {
-    syncHostAvahi(printers, settings);
-    return;
-  }
+  const services = desiredServices(printers, settings);
+  const signature = JSON.stringify(services);
 
-  try {
-    if (!existsSync(ENV.avahiServicesDir)) mkdirSync(ENV.avahiServicesDir, { recursive: true });
-  } catch (error) {
-    log.warn(`Cannot create Avahi services directory ${ENV.avahiServicesDir}`, error);
-    return;
-  }
+  mdnsAdvertiser.start();
+  if (signature === lastSignature) return;
+  lastSignature = signature;
+  mdnsAdvertiser.update(services);
+  log.info(`Bonjour/AirPrint advertisement updated (${services.length} service(s))`);
+}
 
-  const desired = new Map<string, string>();
-  if (settings.advertiseEnabled) {
-    for (const printer of printers) {
-      if (!printer.shared) continue;
-      desired.set(printer.queue, serviceGroup(printer, settings));
-    }
-  }
+/** Human-readable advertiser state for the diagnostics page. */
+export function advertisementStatus(): string {
+  return mdnsAdvertiser.status();
+}
 
-  let changed = false;
-
-  // Remove files for queues that are gone or no longer shared.
-  try {
-    if (existsSync(ENV.avahiServicesDir)) {
-      for (const entry of readdirSync(ENV.avahiServicesDir)) {
-        if (!entry.startsWith(PREFIX) || !entry.endsWith(".service")) continue;
-        const queue = entry.slice(PREFIX.length, -".service".length);
-        if (!desired.has(queue)) {
-          unlinkSync(path.join(ENV.avahiServicesDir, entry));
-          published.delete(queue);
-          changed = true;
-        }
-      }
-    }
-  } catch (error) {
-    log.warn("Could not clear old Avahi service files", error);
-  }
-
-  // Write only records whose content changed.
-  for (const [queue, content] of desired) {
-    if (published.get(queue) === content) continue;
-    try {
-      writeFileSync(path.join(ENV.avahiServicesDir, `${PREFIX}${queue}.service`), content, "utf8");
-      published.set(queue, content);
-      changed = true;
-    } catch (error) {
-      log.warn(`Could not write Avahi record for ${queue}`, error);
-    }
-  }
-
-  if (changed) {
-    log.info(`Bonjour/AirPrint advertisement updated (${desired.size} printer(s))`);
-    reloadAvahi();
-  }
+/** Stops advertising (called on shutdown). */
+export function stopAdvertisements(): void {
+  mdnsAdvertiser.stop();
 }

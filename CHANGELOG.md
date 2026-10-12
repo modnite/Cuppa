@@ -69,9 +69,12 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
-- Cuppa now captures and reports why advertising through the host's Avahi fails
-  (Diagnostics → **Bonjour advertisements**) and retries a publisher that exits,
-  so a printer silently dropping off the network is no longer invisible.
+- **Printers are discoverable on macOS, iOS and Android again.** Cuppa now
+  publishes its Bonjour records itself instead of asking the host's Avahi to do
+  it. On some NAS firmware a container may *browse* the host Avahi but is refused
+  permission to *publish* through it, which silently left every printer
+  undiscoverable. Diagnostics → **Bonjour advertisements** reports the
+  advertiser's state.
 - User-initiated prints (Test Print, Print a file) re-enable the queue first, so
   a printer stopped by an earlier error no longer holds new jobs as pending and
   looks like "nothing happened". The thermal USB transport is also selectable

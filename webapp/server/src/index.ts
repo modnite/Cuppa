@@ -8,6 +8,7 @@ import Fastify from "fastify";
 import { refreshAdvertisements } from "./advertise.js";
 import { auth } from "./auth.js";
 import { migrateThermalUsbQueues, startDiscovery, stopDiscovery } from "./cups.js";
+import { stopAdvertisements } from "./mdns.js";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { registerRoutes } from "./routes.js";
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
 
   const shutdown = (): void => {
     stopDiscovery();
+    stopAdvertisements();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);
