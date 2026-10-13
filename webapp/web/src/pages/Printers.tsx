@@ -125,6 +125,7 @@ export function Printers({ notify }: { notify: Notify }) {
         <div className="grid" style={{ gap: 12 }}>
           {printers.map((printer) => (
             <div key={printer.queue} className="card printer-card">
+              <div className="printer-main">
               <div className="printer-icon">
                 {printer.deviceUri.startsWith("usb:") ? <UsbIcon size={24} /> : <PrinterIcon size={24} />}
               </div>
@@ -144,7 +145,6 @@ export function Printers({ notify }: { notify: Notify }) {
                   {printer.color ? <span className="pill">Color</span> : null}
                   {!printer.accepting ? <span className="pill warn">Not accepting jobs</span> : null}
                 </div>
-                <CopyButton value={printer.uri} />
               </div>
               <div className="printer-actions">
                 <div className="row" style={{ gap: 6 }}>
@@ -233,6 +233,8 @@ export function Printers({ notify }: { notify: Notify }) {
                   <TrashIcon size={16} />
                 </button>
               </div>
+              </div>
+              <CopyButton value={printer.uri} />
             </div>
           ))}
         </div>
