@@ -4,7 +4,7 @@ import type { Printer } from "../types";
 import { AddPrinterDialog } from "../components/AddPrinterDialog";
 import { RenameDialog } from "../components/RenameDialog";
 import { ThermalSettingsDialog } from "../components/ThermalSettingsDialog";
-import { CopyButton, EmptyState, Modal, Spinner, StatusPill, Toggle } from "../components/ui";
+import { CopyButton, EmptyState, Menu, Modal, Spinner, StatusPill, Toggle, type MenuItem } from "../components/ui";
 import {
   FileIcon,
   PencilIcon,
@@ -147,37 +147,14 @@ export function Printers({ notify }: { notify: Notify }) {
                 </div>
               </div>
               <div className="printer-actions">
-                <div className="row" style={{ gap: 6 }}>
-                  <Toggle
-                    checked={printer.shared}
-                    disabled={busyQueue === printer.queue}
-                    label="Share on the network"
-                    onChange={(value) =>
-                      void run(printer.queue, () => api.updatePrinter(printer.queue, { shared: value }), value ? "Now sharing" : "Stopped sharing")
-                    }
-                  />
-                </div>
-                {!printer.isDefault ? (
-                  <button
-                    className="btn btn-ghost btn-icon"
-                    data-tooltip="Set as default"
-                    aria-label="Set as default"
-                    disabled={busyQueue === printer.queue}
-                    onClick={() => void run(printer.queue, () => api.setDefault(printer.queue), "Default printer updated")}
-                  >
-                    <StarIcon size={16} />
-                  </button>
-                ) : null}
-                {printer.thermal ? (
-                  <button
-                    className="btn btn-ghost btn-icon"
-                    data-tooltip="Thermal settings"
-                    aria-label="Thermal settings"
-                    onClick={() => setThermalTarget(printer)}
-                  >
-                    <SettingsIcon size={16} />
-                  </button>
-                ) : null}
+                <Toggle
+                  checked={printer.shared}
+                  disabled={busyQueue === printer.queue}
+                  label="Share on the network"
+                  onChange={(value) =>
+                    void run(printer.queue, () => api.updatePrinter(printer.queue, { shared: value }), value ? "Now sharing" : "Stopped sharing")
+                  }
+                />
                 <button
                   className="btn btn-ghost btn-icon"
                   data-tooltip="Test print"
@@ -187,51 +164,57 @@ export function Printers({ notify }: { notify: Notify }) {
                 >
                   <PrinterIcon size={16} />
                 </button>
-                <button
-                  className="btn btn-ghost btn-icon"
-                  data-tooltip="Print a file"
-                  aria-label="Print a file"
-                  disabled={busyQueue === printer.queue}
-                  onClick={() => {
-                    uploadTarget.current = printer;
-                    fileInput.current?.click();
-                  }}
-                >
-                  <FileIcon size={16} />
-                </button>
-                <button
-                  className="btn btn-ghost btn-icon"
-                  data-tooltip="Upload a PPD (driver)"
-                  aria-label="Upload a PPD (driver)"
-                  disabled={busyQueue === printer.queue}
-                  onClick={() => {
-                    ppdTarget.current = printer;
-                    ppdInput.current?.click();
-                  }}
-                >
-                  <UploadIcon size={16} />
-                </button>
-                <button
-                  className="btn btn-ghost btn-icon"
-                  data-tooltip={printer.enabled ? "Pause printer" : "Resume printer"}
-                  aria-label={printer.enabled ? "Pause printer" : "Resume printer"}
-                  disabled={busyQueue === printer.queue}
-                  onClick={() =>
-                    void run(
-                      printer.queue,
-                      () => api.setEnabled(printer.queue, !printer.enabled),
-                      printer.enabled ? "Printer paused" : "Printer resumed"
-                    )
-                  }
-                >
-                  <PowerIcon size={16} />
-                </button>
-                <button className="btn btn-ghost btn-icon" data-tooltip="Rename" aria-label="Rename" onClick={() => setRenaming(printer)}>
-                  <PencilIcon size={16} />
-                </button>
-                <button className="btn btn-ghost btn-icon" data-tooltip="Remove" aria-label="Remove" onClick={() => setRemoving(printer)}>
-                  <TrashIcon size={16} />
-                </button>
+                <Menu
+                  label={`More actions for ${printer.displayName}`}
+                  items={[
+                    ...(!printer.isDefault
+                      ? [
+                          {
+                            label: "Set as default",
+                            icon: <StarIcon size={15} />,
+                            onSelect: () => void run(printer.queue, () => api.setDefault(printer.queue), "Default printer updated"),
+                          },
+                        ]
+                      : []),
+                    ...(printer.thermal
+                      ? [
+                          {
+                            label: "Thermal settings",
+                            icon: <SettingsIcon size={15} />,
+                            onSelect: () => setThermalTarget(printer),
+                          },
+                        ]
+                      : []),
+                    {
+                      label: "Print a file",
+                      icon: <FileIcon size={15} />,
+                      onSelect: () => {
+                        uploadTarget.current = printer;
+                        fileInput.current?.click();
+                      },
+                    },
+                    {
+                      label: "Upload a PPD",
+                      icon: <UploadIcon size={15} />,
+                      onSelect: () => {
+                        ppdTarget.current = printer;
+                        ppdInput.current?.click();
+                      },
+                    },
+                    {
+                      label: printer.enabled ? "Pause printer" : "Resume printer",
+                      icon: <PowerIcon size={15} />,
+                      onSelect: () =>
+                        void run(
+                          printer.queue,
+                          () => api.setEnabled(printer.queue, !printer.enabled),
+                          printer.enabled ? "Printer paused" : "Printer resumed"
+                        ),
+                    },
+                    { label: "Rename", icon: <PencilIcon size={15} />, onSelect: () => setRenaming(printer) },
+                    { label: "Remove", icon: <TrashIcon size={15} />, danger: true, onSelect: () => setRemoving(printer) },
+                  ] as MenuItem[]}
+                />
               </div>
               </div>
               <CopyButton value={printer.uri} />

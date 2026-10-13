@@ -52,6 +52,15 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The page background is warmer and higher-contrast, with a larger corner radius
   and softer elevation on surfaces.
 - Diagnostics reports the subnet sweep (hosts probed, printers found).
+- UI fixes from the design review:
+  - the phone top bar now fits all five tabs (icon-only, no hidden scroll);
+  - the Jobs table drops secondary columns on phones so Cancel stays reachable;
+  - small text and status pills meet WCAG AA contrast in both themes;
+  - printer actions are grouped into a "⋯" menu (share and Test print stay
+    inline; Remove is separated and danger-styled);
+  - larger touch targets on phones, visible keyboard focus rings, accessible
+    segmented controls, and Diagnostics no longer mixes bordered boxes into
+    borderless cards.
 - Printer discovery is live. `avahi-browse` runs continuously and a printer is
   added the instant mDNS announces it, instead of waiting for a timed scan to
   finish; CUPS is re-scanned on a short timer for USB/socket devices. The API

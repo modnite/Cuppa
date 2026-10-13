@@ -117,11 +117,11 @@ export function Jobs({ notify }: { notify: Notify }) {
             <thead>
               <tr>
                 <th>Job</th>
-                <th>Printer</th>
-                <th>User</th>
+                <th className="col-optional">Printer</th>
+                <th className="col-optional">User</th>
                 <th>Status</th>
-                <th className="right">Size</th>
-                <th>Submitted</th>
+                <th className="right col-optional">Size</th>
+                <th className="col-optional">Submitted</th>
                 <th />
               </tr>
             </thead>
@@ -132,16 +132,16 @@ export function Jobs({ notify }: { notify: Notify }) {
                     <div style={{ fontWeight: 600 }}>{job.name}</div>
                     <div className="muted small mono">#{job.id}</div>
                   </td>
-                  <td className="muted">{job.printer}</td>
-                  <td className="muted">{job.user || "—"}</td>
+                  <td className="muted col-optional">{job.printer}</td>
+                  <td className="muted col-optional">{job.user || "—"}</td>
                   <td>
                     <span className={`pill ${jobPill(job)}`}>{job.stateLabel}</span>
                     {job.stateReasons.length > 0 ? (
                       <div className="muted small">{job.stateReasons.join(", ")}</div>
                     ) : null}
                   </td>
-                  <td className="right muted">{formatBytes(job.sizeBytes)}</td>
-                  <td className="muted small">{formatTime(job.createdAt)}</td>
+                  <td className="right muted col-optional">{formatBytes(job.sizeBytes)}</td>
+                  <td className="muted small col-optional">{formatTime(job.createdAt)}</td>
                   <td className="right">
                     {job.active ? (
                       <button

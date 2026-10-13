@@ -274,15 +274,13 @@ export function AddPrinterDialog({
               return (
                 <button
                   key={device.uri}
-                  className="device-row"
+                  className={`device-row${isSelected ? " selected" : ""}`}
                   disabled={added}
                   style={{
                     width: "100%",
                     textAlign: "left",
                     cursor: added ? "default" : "pointer",
                     opacity: added ? 0.6 : undefined,
-                    borderColor: isSelected ? "var(--accent)" : undefined,
-                    boxShadow: isSelected ? "0 0 0 3px var(--accent-soft)" : undefined,
                   }}
                   onClick={() => {
                     if (added) return;

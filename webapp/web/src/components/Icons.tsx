@@ -220,3 +220,12 @@ export const UploadIcon = makeIcon(
     <path d="m7 8 5-5 5 5" />
   </>
 );
+
+export const MoreIcon = makeIcon(
+  <>
+    <circle cx="5" cy="12" r="1.6" />
+    <circle cx="12" cy="12" r="1.6" />
+    <circle cx="19" cy="12" r="1.6" />
+  </>,
+  { fill: true }
+);

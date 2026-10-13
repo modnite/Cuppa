@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { CheckIcon, CopyIcon, XIcon } from "./Icons";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CheckIcon, CopyIcon, MoreIcon, XIcon } from "./Icons";
 
 export function Spinner() {
   return <span className="spinner" />;
@@ -170,11 +170,13 @@ export function Segmented<T extends string>({
   options: Array<{ value: T; label: string }>;
 }) {
   return (
-    <div className="segmented">
+    <div className="segmented" role="group">
       {options.map((option) => (
         <button
           key={option.value}
+          type="button"
           className={option.value === value ? "active" : ""}
+          aria-pressed={option.value === value}
           onClick={() => onChange(option.value)}
         >
           {option.label}
@@ -184,8 +186,73 @@ export function Segmented<T extends string>({
   );
 }
 
-export function StatusPill({ state, stateLabel, offline }: { state: number; stateLabel: string; offline?: boolean }) {
-  const cls = offline ? "warn" : state === 3 ? "ok" : state === 4 ? "info" : state === 5 ? "bad" : "";
+export interface MenuItem {
+  label: string;
+  icon?: ReactNode;
+  onSelect: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+/** A compact overflow menu, for demoting secondary actions off a card. */
+export function Menu({ items, label = "More actions" }: { items: MenuItem[]; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="menu" ref={ref}>
+      <button
+        type="button"
+        className="btn btn-ghost btn-icon"
+        data-tooltip={label}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreIcon size={16} />
+      </button>
+      {open ? (
+        <div className="menu-list" role="menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={`menu-item${item.danger ? " danger" : ""}`}
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false);
+                item.onSelect();
+              }}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function StatusPill({ state, stateLabel, offline }: { state: number; stateLabel: string; offline?: boolean }) {  const cls = offline ? "warn" : state === 3 ? "ok" : state === 4 ? "info" : state === 5 ? "bad" : "";
   return (
     <span className={`pill ${cls}`}>
       <span className="dot" />
