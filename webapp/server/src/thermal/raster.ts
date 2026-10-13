@@ -137,7 +137,10 @@ export function parsePgm(buffer: Buffer): GrayImage {
   const width = Number.parseInt(readToken(), 10);
   const height = Number.parseInt(readToken(), 10);
   const maxValue = magic === "P5" ? Number.parseInt(readToken(), 10) : 1;
-  offset++; // single whitespace after the max value
+  // Exactly one whitespace byte follows the max value; tolerate a CRLF pair so
+  // the newline is not mistaken for the first pixel.
+  if (buffer[offset] === 0x0d && buffer[offset + 1] === 0x0a) offset += 2;
+  else offset += 1;
 
   const pixels = new Uint8Array(width * height);
   if (magic === "P5") {

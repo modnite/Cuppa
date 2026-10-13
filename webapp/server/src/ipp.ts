@@ -111,6 +111,10 @@ function encodeValue(tag: number, value: IppValue): Buffer {
       buffer.writeInt32BE(range[1] ?? 0, 4);
       return buffer;
     }
+    case IPP_TAG.octetString:
+      // Binary values must not go through String()/utf8, which replaces any
+      // non-UTF-8 byte with U+FFFD.
+      return Buffer.isBuffer(value) ? Buffer.from(value) : Buffer.from(String(value), "utf8");
     default:
       return Buffer.from(String(value), "utf8");
   }

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { log } from "../logger.js";
 import type { DitherMode } from "./raster.js";
 
 /**

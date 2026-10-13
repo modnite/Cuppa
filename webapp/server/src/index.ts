@@ -105,8 +105,8 @@ async function main(): Promise<void> {
   const kick = async (): Promise<void> => {
     const ok = await refreshAdvertisements();
     if (ok && !migrated) {
-      migrated = true;
-      void migrateThermalUsbQueues();
+      // Only mark as done when it actually ran, so a transient failure retries.
+      if (await migrateThermalUsbQueues()) migrated = true;
     }
     attempts += 1;
     if (!ok && attempts < 20) {

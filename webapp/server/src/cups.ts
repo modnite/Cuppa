@@ -493,8 +493,10 @@ export async function setAccepting(queue: string, accepting: boolean): Promise<v
  * re-enable the queue first so that cannot silently block a print.
  */
 async function ensureEnabled(queue: string): Promise<void> {
-  await run("cupsenable", [queue]);
-  await run("cupsaccept", [queue]);
+  // These used to swallow failures and submit anyway, leaving a job pending on
+  // a stopped queue with no error shown. Fail loudly instead.
+  await runOrThrow("cupsenable", [queue]);
+  await runOrThrow("cupsaccept", [queue]);
 }
 
 /** Sends a file to a queue through CUPS' own `lp` client. */
@@ -574,14 +576,16 @@ export async function testPrint(queue: string): Promise<void> {
  * created before that backend existed use a plain `usb://` URI, which makes the
  * Rollo X1038 drop the whole label.
  */
-export async function migrateThermalUsbQueues(): Promise<void> {
+export async function migrateThermalUsbQueues(): Promise<boolean> {
   const thermal = new Set(listThermalQueues());
-  if (thermal.size === 0) return;
+  if (thermal.size === 0) return true;
   let printers: PrinterView[];
   try {
     printers = await listPrinters();
-  } catch {
-    return;
+  } catch (error) {
+    // Report failure so the caller retries instead of marking this done.
+    log.warn(`Could not list printers to migrate thermal USB queues: ${String(error)}`);
+    return false;
   }
   for (const printer of printers) {
     if (!thermal.has(printer.queue)) continue;
@@ -590,6 +594,7 @@ export async function migrateThermalUsbQueues(): Promise<void> {
     const result = await run("lpadmin", ["-p", printer.queue, "-v", next]);
     if (result.code === 0) log.info(`Migrated ${printer.queue} to the paced USB backend`);
   }
+  return true;
 }
 
 /** Active or completed jobs across every queue. */

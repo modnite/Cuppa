@@ -23,7 +23,6 @@ const DEFAULTS: StoreData = {
 class Store {
   private file: string;
   private data: StoreData;
-  private saveTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.file = path.join(ENV.dataDir, "cuppa.json");
@@ -45,18 +44,26 @@ class Store {
     }
   }
 
+  /**
+   * Writes the store synchronously and throws on failure.
+   *
+   * This used to be a debounced write whose errors were only logged, so a
+   * read-only or full /data silently lost printer names, settings and the admin
+   * password while the UI still said "saved". The store is tiny and changes are
+   * infrequent, so a synchronous write is cheap and lets callers report failure.
+   */
   private persist(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => {
-      try {
-        if (!existsSync(ENV.dataDir)) mkdirSync(ENV.dataDir, { recursive: true });
-        const temporary = `${this.file}.tmp`;
-        writeFileSync(temporary, JSON.stringify(this.data, null, 2), "utf8");
-        renameSync(temporary, this.file);
-      } catch (error) {
-        log.error("Could not write the Cuppa store", error);
-      }
-    }, 150);
+    try {
+      if (!existsSync(ENV.dataDir)) mkdirSync(ENV.dataDir, { recursive: true });
+      const temporary = `${this.file}.tmp`;
+      writeFileSync(temporary, JSON.stringify(this.data, null, 2), "utf8");
+      renameSync(temporary, this.file);
+    } catch (error) {
+      log.error("Could not write the Cuppa store", error);
+      throw new Error(
+        `Could not save Cuppa state to ${this.file}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   get settings(): CuppaSettings {

@@ -74,6 +74,21 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- A batch of silent-failure and correctness fixes found by an audit:
+  - the store now writes synchronously and reports failure, so a read-only or
+    full data volume can no longer silently lose printer names, settings or the
+    admin password;
+  - a corrupt or unreadable per-printer thermal config is logged instead of
+    silently switching the queue to TSPL;
+  - printing to a stopped queue reports the enable failure instead of leaving the
+    job pending;
+  - the one-shot thermal-USB migration retries on failure instead of marking
+    itself done;
+  - mDNS advertising no longer latches permanently onto the built-in responder,
+    and a failed publish is retried;
+  - `stripCuppaSuffix` no longer eats a character before a bare "(Cuppa)";
+  - IPP octet-string values are no longer corrupted, and PGM headers with CRLF
+    parse correctly.
 - **Broadcasting works again.** 0.2.15 replaced the working host-Avahi
   advertisement with a built-in responder unconditionally, which broke
   discovery. Publishing now goes through the host's Avahi again (with stderr

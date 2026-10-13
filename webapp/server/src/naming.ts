@@ -35,7 +35,7 @@ export const CUPPA_SUFFIX = " (Cuppa)";
 /** The Bonjour/AirPrint service name for a printer. */
 export function advertisedName(displayName: string): string {
   const trimmed = displayName.trim() || "Cuppa Printer";
-  return trimmed.toLowerCase().endsWith(CUPPA_SUFFIX.trim().toLowerCase())
+  return trimmed.toLowerCase().endsWith(CUPPA_SUFFIX.toLowerCase())
     ? trimmed
     : `${trimmed}${CUPPA_SUFFIX}`;
 }
@@ -43,7 +43,9 @@ export function advertisedName(displayName: string): string {
 /** Strips a trailing " (Cuppa)" that may have been stored in CUPS' info field. */
 export function stripCuppaSuffix(info: string): string {
   const trimmed = info.trim();
-  return trimmed.toLowerCase().endsWith(CUPPA_SUFFIX.trim().toLowerCase())
+  // Compare and slice against the *same* suffix (with its leading space), so a
+  // bare "(Cuppa)" cannot make this eat a character before it.
+  return trimmed.toLowerCase().endsWith(CUPPA_SUFFIX.toLowerCase())
     ? trimmed.slice(0, -CUPPA_SUFFIX.length).trim()
     : trimmed;
 }

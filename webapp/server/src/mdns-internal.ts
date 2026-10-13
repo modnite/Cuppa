@@ -237,6 +237,11 @@ export class MdnsAdvertiser {
     if (this.services.length === 0) lines.push("  (nothing to advertise)");
     return lines.join("\n");
   }
+
+  /** True once the socket is open and records are being announced. */
+  get isRunning(): boolean {
+    return this.socket !== null;
+  }
 }
 
 export const mdnsAdvertiser = new MdnsAdvertiser();
