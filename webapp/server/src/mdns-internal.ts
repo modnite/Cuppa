@@ -124,6 +124,7 @@ export class MdnsAdvertiser {
   private services: AdvertisedService[] = [];
   private ip = "";
   private host = "";
+  private bindError = "";
 
   /** Records every service Cuppa advertises, so queries can be answered. */
   private targets(): Set<string> {
@@ -182,7 +183,10 @@ export class MdnsAdvertiser {
     this.host = `${hostName().toLowerCase().replace(/[^a-z0-9-]/g, "-")}-cuppa`;
 
     const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
-    socket.on("error", (error) => log.warn(`mDNS socket error: ${error.message}`));
+    socket.on("error", (error) => {
+      this.bindError = error.message;
+      log.warn(`mDNS socket error: ${error.message}`);
+    });
     socket.on("message", (message: Buffer) => {
       try {
         const questions = readQuestions(message);
@@ -224,7 +228,9 @@ export class MdnsAdvertiser {
 
   status(): string {
     if (!this.socket) return "(mDNS advertiser not started)";
-    const lines = [`advertising ${this.services.length} service(s) as ${this.host}.local (${this.ip})`];
+    const lines: string[] = [];
+    if (this.bindError) lines.push(`socket error: ${this.bindError}`);
+    lines.push(`advertising ${this.services.length} service(s) as ${this.host}.local (${this.ip})`);
     for (const service of this.services) {
       lines.push(`  ${service.name}  ${service.type}  port ${service.port}`);
     }

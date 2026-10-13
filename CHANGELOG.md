@@ -74,6 +74,12 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- **Broadcasting works again.** 0.2.15 replaced the working host-Avahi
+  advertisement with a built-in responder unconditionally, which broke
+  discovery. Publishing now goes through the host's Avahi again (with stderr
+  capture and retry), and the built-in responder is used only as a fallback when
+  the host refuses publishing. `CUPPA_MDNS_MODE=internal` forces the built-in
+  responder.
 - **Printers are discoverable on macOS, iOS and Android again.** Cuppa now
   publishes its Bonjour records itself instead of asking the host's Avahi to do
   it. On some NAS firmware a container may *browse* the host Avahi but is refused

@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { mdnsAdvertiser, type AdvertisedService } from "./mdns-internal.js";
@@ -11,11 +12,10 @@ import type { CuppaSettings, PrinterView } from "./types.js";
  * Android clients: the service name is exactly the user's chosen name with
  * " (Cuppa)" on the end, and the TXT records carry the driverless formats.
  *
- * Advertising is done by Cuppa's own advertiser (see `mdns-internal.ts`) rather
- * than the host's Avahi. On some NAS firmware a container is allowed to *browse*
- * the host's Avahi but refused permission to *publish* through it, which
- * silently left the printers undiscoverable. Announcing the records directly
- * removes that dependency.
+ * Advertising uses the host's Avahi when the container is borrowing it (that is
+ * the path that works on the NAS), and falls back to Cuppa's own mDNS responder
+ * (`mdns-internal.ts`) if publishing through the host is refused. The fallback
+ * is what makes a firmware that blocks publishing still discoverable.
  */
 
 /** Driverless formats worth advertising, in preference order. */
@@ -96,30 +96,123 @@ function desiredServices(printers: PrinterView[], settings: CuppaSettings): Adve
   return services;
 }
 
-/** Content last advertised, so a periodic refresh does not re-announce needlessly. */
+// ---------------------------------------------------------------------------
+// Host-Avahi publishing
+// ---------------------------------------------------------------------------
+
+/** Running `avahi-publish-service` children, keyed by "<name>\0<type>". */
+const hostPublishers = new Map<string, { child: ChildProcess; signature: string }>();
+/** Last failure per key, so diagnostics can show why publishing failed. */
+const publisherErrors = new Map<string, string>();
+
+/** Once the host refuses publishing we stay on the built-in responder. */
+let usingInternal = false;
+let lastServices: AdvertisedService[] = [];
 let lastSignature = "";
 
-/**
- * Rebuilds the advertised records from the current printer list. Safe to call
- * after any change and on a timer; only an actual change re-announces.
- */
+function publishArgs(service: AdvertisedService): string[] {
+  const args: string[] = [];
+  if (service.airprint) args.push(`--subtype=_universal._sub.${service.type}`);
+  args.push(service.name, service.type, String(service.port), ...service.txt);
+  return args;
+}
+
+/** Switches to Cuppa's own responder, once. */
+function useInternalResponder(reason: string): void {
+  if (usingInternal) return;
+  usingInternal = true;
+  log.warn(`Host Avahi publishing failed (${reason}); using the built-in mDNS responder`);
+  for (const entry of hostPublishers.values()) entry.child.kill("SIGTERM");
+  hostPublishers.clear();
+  mdnsAdvertiser.start();
+  mdnsAdvertiser.update(lastServices);
+}
+
+function syncHostAvahi(services: AdvertisedService[]): void {
+  const desired = new Map<string, string[]>();
+  for (const service of services) {
+    desired.set(`${service.name}\u0000${service.type}`, publishArgs(service));
+  }
+
+  for (const [key, entry] of hostPublishers) {
+    if (!desired.has(key)) {
+      entry.child.kill("SIGTERM");
+      hostPublishers.delete(key);
+      publisherErrors.delete(key);
+    }
+  }
+
+  for (const [key, args] of desired) {
+    const signature = args.join("\u0000");
+    const existing = hostPublishers.get(key);
+    if (existing?.signature === signature) continue;
+    if (existing) existing.child.kill("SIGTERM");
+    hostPublishers.delete(key);
+
+    // Capture stderr: when the host Avahi refuses publishing this is the only
+    // place the reason appears.
+    const child = spawn("avahi-publish-service", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = (stderr + chunk.toString()).slice(-400);
+    });
+    child.on("error", (error) => {
+      publisherErrors.set(key, `spawn failed: ${error.message}`);
+      useInternalResponder(`spawn failed: ${error.message}`);
+    });
+    child.on("exit", (code) => {
+      if (hostPublishers.get(key)?.child !== child) return;
+      hostPublishers.delete(key);
+      const message = stderr.trim() || `exit ${code}`;
+      publisherErrors.set(key, message);
+      log.warn(`Avahi publisher for ${key} exited: ${message}`);
+      useInternalResponder(message);
+    });
+    hostPublishers.set(key, { child, signature });
+    publisherErrors.delete(key);
+  }
+}
+
+/** Content last advertised, so a periodic refresh does not re-announce needlessly. */
 export function syncAdvertisements(printers: PrinterView[], settings: CuppaSettings): void {
   const services = desiredServices(printers, settings);
-  const signature = JSON.stringify(services);
+  lastServices = services;
 
-  mdnsAdvertiser.start();
+  const signature = JSON.stringify(services);
   if (signature === lastSignature) return;
   lastSignature = signature;
-  mdnsAdvertiser.update(services);
+
+  const preferInternal = usingInternal || ENV.avahiMode !== "host" || ENV.mdnsMode === "internal";
+  if (preferInternal) {
+    mdnsAdvertiser.start();
+    mdnsAdvertiser.update(services);
+  } else {
+    syncHostAvahi(services);
+  }
   log.info(`Bonjour/AirPrint advertisement updated (${services.length} service(s))`);
 }
 
 /** Human-readable advertiser state for the diagnostics page. */
 export function advertisementStatus(): string {
-  return mdnsAdvertiser.status();
+  if (usingInternal || ENV.avahiMode !== "host" || ENV.mdnsMode === "internal") {
+    return `mode: built-in responder\n${mdnsAdvertiser.status()}`;
+  }
+  const lines = [`mode: host Avahi (${hostPublishers.size} running)`];
+  for (const key of hostPublishers.keys()) {
+    lines.push(`  RUNNING  ${key.replace("\u0000", "  ")}`);
+  }
+  for (const [key, error] of publisherErrors) {
+    if (!hostPublishers.has(key)) lines.push(`  FAILED   ${key.replace("\u0000", "  ")}  ${error}`);
+  }
+  if (hostPublishers.size === 0 && publisherErrors.size === 0) {
+    lines.push("  (nothing to publish — check that printers are shared and advertising is on)");
+  }
+  return lines.join("\n");
 }
 
 /** Stops advertising (called on shutdown). */
 export function stopAdvertisements(): void {
+  for (const entry of hostPublishers.values()) entry.child.kill("SIGTERM");
+  hostPublishers.clear();
   mdnsAdvertiser.stop();
 }

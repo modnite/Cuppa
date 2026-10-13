@@ -31,6 +31,11 @@ export const ENV = {
    * (two responders on one host fight over port 5353).
    */
   avahiMode: process.env.CUPPA_AVAHI_MODE ?? "container",
+  /**
+   * How printers are advertised: "auto" (publish through the host's Avahi and
+   * fall back to Cuppa's own responder if that fails), "host", or "internal".
+   */
+  mdnsMode: process.env.CUPPA_MDNS_MODE ?? "auto",
   /** Set to "1" to log every command and IPP exchange. */
   debug: process.env.CUPPA_DEBUG === "1",
 } as const;
