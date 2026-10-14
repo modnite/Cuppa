@@ -58,18 +58,23 @@ and paste [`compose.omv.yml`](compose.omv.yml) instead — it uses OMV's
 1. **Printers → Add printer**.
 2. Pick a printer found on the network, or type its IPP address
    (`ipp://192.168.1.50:631/ipp/print`).
-3. Give it a name. Other devices will see it as **`<your name> (Cuppa)`**.
+3. Give it a name and a location. Other devices will see it as
+   **`<your name> (<location>)`** — e.g. `Printer (Lobby)` — so two printers can
+   share a name as long as their locations differ. With no location set, Cuppa
+   appends ` (Cuppa)` instead.
 4. Add it. It is now advertised and ready.
 
 ### Renaming
 
 Open a printer and choose **Rename**. The name you type becomes the Bonjour
-service name with `" (Cuppa)"` appended automatically. The internal CUPS queue
-name stays put, so jobs and settings are preserved and clients keep a stable
-identity.
+service name with the printer's location appended in parentheses, so two
+printers named "Printer" in different places stay distinct (`Printer (Lobby)`
+and `Printer (Office)`). The internal CUPS queue name stays put, so jobs and
+settings are preserved and clients keep a stable identity.
 
-The `(Cuppa)` suffix is what tells you at a glance, in the macOS/iOS/Android
-print dialog, that a printer is being shared through this server.
+The parenthesised suffix is what tells you at a glance, in the
+macOS/iOS/Android print dialog, that a printer is being shared through this
+server — and which one it is.
 
 ### Connect a client
 
@@ -150,8 +155,8 @@ a normal PDF and Cuppa turns it into the printer's own language.
    printer**.
 2. Choose the dialect, label size, density, speed, dithering and polarity, then
    add it.
-3. Other devices see `<name> (Cuppa)` and can print to it like any other queue.
-   **Test print** sends a diagnostic label.
+3. Other devices see `<name> (<location>)` and can print to it like any other
+   queue. **Test print** sends a diagnostic label.
 
 Supported dialects:
 
@@ -256,7 +261,8 @@ codec.
   together. The image also installs the `cuppa-thermal` CUPS filter.
 
 Cuppa publishes its own Bonjour records rather than letting CUPS do it, so the
-advertised name is exactly what you chose plus `" (Cuppa)"` — CUPS would
-otherwise decorate it with a host suffix. The TXT records mirror the Android
-app's `NetworkPrinterAdvertiser` so a printer shared from either front end looks
+advertised name is exactly what you chose plus the location in parentheses (or
+`" (Cuppa)"` when no location is set) — CUPS would otherwise decorate it with a
+host suffix. The TXT records mirror the Android app's
+`NetworkPrinterAdvertiser` so a printer shared from either front end looks
 identical to clients.
