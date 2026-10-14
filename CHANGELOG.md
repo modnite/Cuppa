@@ -91,6 +91,9 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- A discovered device's address no longer spills out of the **Add printer**
+  dialog on a phone. The address and model now truncate with an ellipsis
+  instead of forcing a horizontal scroll inside the dialog.
 - The phone top bar's tab glyphs are centred. Icon-only tabs had kept the
   sidebar's asymmetric padding and `width: 100%`, so the icons hugged the left
   edge of each tab; each tab now takes an equal share and centres its glyph.
