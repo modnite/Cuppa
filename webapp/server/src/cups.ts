@@ -176,6 +176,7 @@ export async function listPrinters(): Promise<PrinterView[]> {
     const meta = store.metaFor(queue);
     const info = recordString(record, "printer-info");
     const displayName = meta?.displayName?.trim() || stripCuppaSuffix(info) || queue;
+    const location = meta?.location || recordString(record, "printer-location");
     const state = recordNumber(record, "printer-state", 3);
     const shared = meta?.shared ?? recordBoolean(record, "printer-is-shared", true);
     const deviceUri = recordString(record, "device-uri");
@@ -187,8 +188,8 @@ export async function listPrinters(): Promise<PrinterView[]> {
     printers.push({
       queue,
       displayName,
-      advertisedName: advertisedName(displayName),
-      location: meta?.location || recordString(record, "printer-location"),
+      advertisedName: advertisedName(displayName, location),
+      location,
       makeAndModel: recordString(record, "printer-make-and-model"),
       state,
       stateLabel: printerStateLabel(state),
@@ -355,7 +356,7 @@ export async function addPrinter(input: AddPrinterInput): Promise<string> {
   }
   args.push(
     "-D",
-    advertisedName(displayName),
+    advertisedName(displayName, location),
     "-o",
     `printer-is-shared=${shared}`,
     // Stop the queue on the first error instead of retrying a bad job forever.
@@ -453,14 +454,18 @@ export async function updateThermalSettings(queue: string, patch: Partial<Therma
 export async function renamePrinter(queue: string, displayName: string): Promise<void> {
   const clean = displayName.trim();
   if (!clean) throw new Error("A printer name is required");
-  await runOrThrow("lpadmin", ["-p", queue, "-D", advertisedName(clean)]);
+  const location = store.metaFor(queue)?.location ?? "";
+  await runOrThrow("lpadmin", ["-p", queue, "-D", advertisedName(clean, location)]);
   store.patchMeta(queue, { displayName: clean });
   log.info(`Renamed ${queue} to "${clean}"`);
 }
 
 export async function setLocation(queue: string, location: string): Promise<void> {
-  await runOrThrow("lpadmin", ["-p", queue, "-L", location.trim()]);
-  store.patchMeta(queue, { location: location.trim() });
+  const clean = location.trim();
+  const displayName = store.metaFor(queue)?.displayName ?? queue;
+  // The advertised name carries the location, so update both together.
+  await runOrThrow("lpadmin", ["-p", queue, "-L", clean, "-D", advertisedName(displayName, clean)]);
+  store.patchMeta(queue, { location: clean });
 }
 
 export async function setShared(queue: string, shared: boolean): Promise<void> {
@@ -1042,9 +1047,13 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
     ]),
   ]);
   const discovered = (await discoverDevices(true)).map((device) => device.uri).join("\n");
+  const formats = (await listPrinters())
+    .map((printer) => `${printer.queue}: ${printer.formats.join(", ") || "(none)"}`)
+    .join("\n");
   return {
     devices,
     discovered,
+    formats,
     sweep: lastSweep,
     queues,
     printers,

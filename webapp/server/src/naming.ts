@@ -32,12 +32,19 @@ export function resourceName(name: string): string {
 
 export const CUPPA_SUFFIX = " (Cuppa)";
 
-/** The Bonjour/AirPrint service name for a printer. */
-export function advertisedName(displayName: string): string {
+/**
+ * The Bonjour/AirPrint service name for a printer.
+ *
+ * The printer's location is appended in parentheses when set. Two printers can
+ * share a name ("Printer") but sit in different places, and Bonjour service
+ * names must be unique — appending the location is what keeps them distinct.
+ * With no location, " (Cuppa)" still marks it as Cuppa-served.
+ */
+export function advertisedName(displayName: string, location = ""): string {
   const trimmed = displayName.trim() || "Cuppa Printer";
-  return trimmed.toLowerCase().endsWith(CUPPA_SUFFIX.toLowerCase())
-    ? trimmed
-    : `${trimmed}${CUPPA_SUFFIX}`;
+  const place = location.trim();
+  const suffix = place ? ` (${place})` : CUPPA_SUFFIX;
+  return trimmed.toLowerCase().endsWith(suffix.toLowerCase()) ? trimmed : `${trimmed}${suffix}`;
 }
 
 /** Strips a trailing " (Cuppa)" that may have been stored in CUPS' info field. */

@@ -55,6 +55,14 @@ test("advertisedName appends the suffix unless the spaced suffix is present", ()
   assert.equal(advertisedName("Office(cuppa)"), "Office(cuppa) (Cuppa)");
 });
 
+test("advertisedName appends the location when set", () => {
+  assert.equal(advertisedName("Printer", "Lobby"), "Printer (Lobby)");
+  assert.equal(advertisedName("Printer", "  Office  "), "Printer (Office)");
+  assert.equal(advertisedName("Printer", ""), "Printer (Cuppa)");
+  // Already suffixed with the same location: left alone.
+  assert.equal(advertisedName("Printer (Lobby)", "Lobby"), "Printer (Lobby)");
+});
+
 test("uniqueResourceName compares case-insensitively and accepts any iterable", () => {
   assert.equal(uniqueResourceName("Office Laser", new Set(["office_laser"])), "Office_Laser_2");
   assert.equal(

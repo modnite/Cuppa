@@ -61,6 +61,12 @@ Notable changes to Cuppa, newest first. Loosely follows
   - larger touch targets on phones, visible keyboard focus rings, accessible
     segmented controls, and Diagnostics no longer mixes bordered boxes into
     borderless cards.
+- The advertised Bonjour name now uses the printer's **location** instead of
+  " (Cuppa)" — e.g. `Printer (Lobby)` and `Printer (Office)` — so two printers
+  with the same name stay distinct. With no location it still falls back to
+  " (Cuppa)". Setting or clearing a location updates the advertised name too.
+- Diagnostics now shows the advertised `pdl` per Bonjour service and each
+  queue's `document-format-supported`.
 - Printer discovery is live. `avahi-browse` runs continuously and a printer is
   added the instant mDNS announces it, instead of waiting for a timed scan to
   finish; CUPS is re-scanned on a short timer for USB/socket devices. The API

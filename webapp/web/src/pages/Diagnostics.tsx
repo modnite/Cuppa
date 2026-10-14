@@ -34,6 +34,7 @@ const SECTIONS: Array<{ key: string; label: string; hint: string }> = [
   { key: "backends", label: "Backends", hint: "Installed CUPS backends, including cuppa-usb." },
   { key: "thermal", label: "Thermal queues", hint: "Queues with a saved thermal configuration." },
   { key: "printerOptions", label: "Printer options", hint: "lpoptions -l — the PPD options each queue exposes." },
+  { key: "formats", label: "Document formats", hint: "document-format-supported per queue — this is what Cuppa advertises as pdl over Bonjour." },
   { key: "usbDevices", label: "USB devices", hint: "lsusb — everything on the USB bus." },
   { key: "usbTree", label: "USB tree", hint: "lsusb -t — which driver owns each interface." },
   { key: "usbNodes", label: "USB device nodes", hint: "Kernel /dev/bus/usb and /dev/usb nodes." },

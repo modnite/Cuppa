@@ -232,7 +232,8 @@ export class MdnsAdvertiser {
     if (this.bindError) lines.push(`socket error: ${this.bindError}`);
     lines.push(`advertising ${this.services.length} service(s) as ${this.host}.local (${this.ip})`);
     for (const service of this.services) {
-      lines.push(`  ${service.name}  ${service.type}  port ${service.port}`);
+      const pdl = service.txt.find((entry) => entry.startsWith("pdl=")) ?? "";
+      lines.push(`  ${service.name}  ${service.type}  port ${service.port}  ${pdl}`);
     }
     if (this.services.length === 0) lines.push("  (nothing to advertise)");
     return lines.join("\n");
