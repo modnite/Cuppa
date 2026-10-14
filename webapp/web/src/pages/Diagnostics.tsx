@@ -31,6 +31,7 @@ const SECTIONS: Array<{ key: string; label: string; hint: string }> = [
   { key: "devices", label: "Discovered devices", hint: "lpinfo -v — what CUPS can see right now." },
   { key: "discovered", label: "Discovery (resolved)", hint: "Devices Cuppa found and resolved, including mDNS and the subnet sweep." },
   { key: "sweep", label: "Subnet sweep", hint: "The last /24 IPP probe — how many hosts were tried and how many printers answered." },
+  { key: "discoveryError", label: "Discovery errors", hint: "The last avahi-browse failure, if any — an empty device list always has a visible cause." },
   { key: "backends", label: "Backends", hint: "Installed CUPS backends, including cuppa-usb." },
   { key: "thermal", label: "Thermal queues", hint: "Queues with a saved thermal configuration." },
   { key: "printerOptions", label: "Printer options", hint: "lpoptions -l — the PPD options each queue exposes." },

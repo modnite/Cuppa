@@ -351,6 +351,14 @@ a:hover {
   color: var(--text-tertiary);
 }
 
+.sidebar-signout {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
 /* ------------------------------------------------------------------ Main */
 
 .main {

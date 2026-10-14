@@ -38,6 +38,8 @@ Notable changes to Cuppa, newest first. Loosely follows
 - All five thermal command languages (TSPL, ZPL II, EPL2, ESC/POS, PCL 5) can
   now be chosen in the webapp when adding or editing a thermal printer; the
   dialect was previously fixed to TSPL in the UI.
+- A **Sign out** control (in the sidebar and Settings → Session) when an admin
+  password is set, so a session can be ended from the app.
 
 ### Changed
 - The UI drops the "rounded box with a 1px outline" look. Cards and controls are
@@ -89,6 +91,20 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- Discovery failures are no longer invisible: an `avahi-browse` spawn or exit
+  error is recorded and shown in Diagnostics → **Discovery errors**, and each
+  service type restarts on its own with backoff instead of hot-looping every
+  three seconds.
+- A raw queue no longer advertises `application/pdf` as a supported format, so a
+  client is not told to send a PDF the queue can only pass through unchanged.
+- Thermal **Test print** now fails loudly when the test page cannot be
+  rasterized, instead of quietly sending a drawn TSPL label that the Rollo
+  X1038 accepts and then ignores.
+- A PPD upload or file print with a missing or non-multipart body now returns
+  400 instead of surfacing as a 500.
+- The Bonjour TXT records now include `adminurl`, and Diagnostics → **Bonjour
+  advertisements** lists the exact records being published so they can be
+  compared with a real printer's.
 - A batch of silent-failure and correctness fixes found by an audit:
   - the store now writes synchronously and reports failure, so a read-only or
     full data volume can no longer silently lose printer names, settings or the

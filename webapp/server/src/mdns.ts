@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { mdnsAdvertiser, type AdvertisedService } from "./mdns-internal.js";
+import { primaryIPv4 } from "./network.js";
 import type { CuppaSettings, PrinterView } from "./types.js";
 
 /**
@@ -9,8 +10,9 @@ import type { CuppaSettings, PrinterView } from "./types.js";
  *
  * The records mirror the Android app's `NetworkPrinterAdvertiser` so the same
  * printer shared from either front end looks identical to macOS, iOS and
- * Android clients: the service name is exactly the user's chosen name with
- * " (Cuppa)" on the end, and the TXT records carry the driverless formats.
+ * Android clients: the service name is the user's chosen name with the
+ * printer's location in parentheses (or " (Cuppa)" when no location is set),
+ * and the TXT records carry the driverless formats.
  *
  * Advertising uses the host's Avahi when the container is borrowing it (the
  * path that works on the NAS), and falls back to Cuppa's own mDNS responder
@@ -30,11 +32,12 @@ const PREFERRED_FORMATS = [
   "application/octet-stream",
 ];
 
-function documentFormats(printer: PrinterView): string {
+export function documentFormats(printer: PrinterView): string {
   const available = new Set(printer.formats);
   const chosen = PREFERRED_FORMATS.filter((format) => available.has(format));
-  // A queue that accepts nothing recognizable should still claim PDF and raw.
-  if (!chosen.includes("application/pdf")) chosen.unshift("application/pdf");
+  // Only claim what the queue can actually accept: a raw queue must not
+  // advertise a PDF claim it cannot honour, or clients send a PDF that the
+  // backend passes through unchanged and prints blank.
   if (chosen.length === 0) chosen.push("application/octet-stream");
   return chosen.join(",");
 }
@@ -43,12 +46,15 @@ function bareUuid(printer: PrinterView): string {
   return printer.uuid.replace(/^urn:uuid:/i, "");
 }
 
-function txtRecords(printer: PrinterView, settings: CuppaSettings): string[] {
+export function txtRecords(printer: PrinterView, settings: CuppaSettings): string[] {
   const model = printer.makeAndModel.trim() || "Cuppa Printer";
   const records: string[] = [
     `rp=printers/${printer.queue}`,
     `pdl=${documentFormats(printer)}`,
     `ty=${model}`,
+    // Real IPP Everywhere printers publish the queue's admin URL; some clients
+    // (including Android's print service) use it to open the printer's page.
+    `adminurl=ipp://${primaryIPv4()}:${ENV.ippPort}/printers/${printer.queue}`,
     `Color=${printer.color ? "T" : "F"}`,
     "Duplex=F",
     "txtvers=1",
@@ -242,18 +248,29 @@ export function syncAdvertisements(printers: PrinterView[], settings: CuppaSetti
 
 /** Human-readable advertiser state for the diagnostics page. */
 export function advertisementStatus(): string {
+  const lines: string[] = [];
   if (usingInternal || ENV.avahiMode !== "host" || ENV.mdnsMode === "internal") {
-    return `mode: built-in responder\n${mdnsAdvertiser.status()}`;
+    lines.push(`mode: built-in responder`, mdnsAdvertiser.status());
+  } else {
+    lines.push(`mode: host Avahi (${hostPublishers.size} running)`);
+    for (const key of hostPublishers.keys()) {
+      lines.push(`  RUNNING  ${key.replace("\u0000", "  ")}`);
+    }
+    for (const [key, error] of publisherErrors) {
+      if (!hostPublishers.has(key)) lines.push(`  FAILED   ${key.replace("\u0000", "  ")}  ${error}`);
+    }
+    if (hostPublishers.size === 0 && publisherErrors.size === 0) {
+      lines.push("  (nothing to publish — check that printers are shared and advertising is on)");
+    }
   }
-  const lines = [`mode: host Avahi (${hostPublishers.size} running)`];
-  for (const key of hostPublishers.keys()) {
-    lines.push(`  RUNNING  ${key.replace("\u0000", "  ")}`);
-  }
-  for (const [key, error] of publisherErrors) {
-    if (!hostPublishers.has(key)) lines.push(`  FAILED   ${key.replace("\u0000", "  ")}  ${error}`);
-  }
-  if (hostPublishers.size === 0 && publisherErrors.size === 0) {
-    lines.push("  (nothing to publish — check that printers are shared and advertising is on)");
+
+  // The exact records clients see, so the advertised TXT can be compared with a
+  // real IPP Everywhere printer's without a packet capture.
+  lines.push("", `published records (${lastServices.length} service(s)):`);
+  if (lastServices.length === 0) lines.push("  (none)");
+  for (const service of lastServices) {
+    lines.push(`  ${service.name}  ${service.type}${service.airprint ? "  [_universal]" : ""}`);
+    for (const entry of service.txt) lines.push(`    ${entry}`);
   }
   return lines.join("\n");
 }

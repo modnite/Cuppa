@@ -30,8 +30,18 @@ export default function App() {
     setTimeout(() => setToasts((current) => current.filter((toast) => toast.id !== id)), 3800);
   }, []);
 
-  const refreshStatus = useCallback(async () => {
+  const signOut = useCallback(async () => {
     try {
+      await api.logout();
+    } catch {
+      // The session may already be gone; show the login screen regardless.
+    }
+    setAuthenticated(false);
+    setStatus(null);
+    setPage("dashboard");
+  }, []);
+
+  const refreshStatus = useCallback(async () => {    try {
       setStatus(await api.status());
       setOnline(true);
     } catch (error) {
@@ -108,7 +118,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar page={page} onNavigate={setPage} status={status} />
+      <Sidebar page={page} onNavigate={setPage} status={status} authRequired={authRequired} onLogout={() => void signOut()} />
       <main className="main">
         <div className="main-inner">
           {!online ? (
@@ -134,6 +144,7 @@ export default function App() {
               refreshStatus={() => void refreshStatus()}
               theme={themePrefs}
               onThemeChange={setThemePrefs}
+              onLogout={() => void signOut()}
             />
           ) : null}
         </div>

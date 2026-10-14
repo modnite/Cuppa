@@ -1,6 +1,6 @@
 import type { Page, Status } from "../types";
 import { CuppaIcon } from "./CuppaIcon";
-import { GaugeIcon, JobsIcon, PrinterIcon, SettingsIcon, TerminalIcon } from "./Icons";
+import { GaugeIcon, JobsIcon, LogoutIcon, PrinterIcon, SettingsIcon, TerminalIcon } from "./Icons";
 
 const NAV: Array<{ page: Page; label: string; icon: typeof GaugeIcon }> = [
   { page: "dashboard", label: "Dashboard", icon: GaugeIcon },
@@ -14,10 +14,14 @@ export function Sidebar({
   page,
   onNavigate,
   status,
+  authRequired,
+  onLogout,
 }: {
   page: Page;
   onNavigate: (page: Page) => void;
   status: Status | null;
+  authRequired: boolean;
+  onLogout: () => void;
 }) {
   const online = status?.cupsRunning ?? false;
   return (
@@ -57,6 +61,18 @@ export function Sidebar({
         <div className="sidebar-version">
           {status ? `Cuppa ${status.cuppaVersion} · CUPS ${status.cupsVersion}` : "Connecting…"}
         </div>
+        {authRequired ? (
+          <button
+            type="button"
+            className="btn btn-ghost sidebar-signout"
+            onClick={onLogout}
+            data-tooltip="Sign out of Cuppa"
+            aria-label="Sign out"
+          >
+            <LogoutIcon size={15} />
+            <span>Sign out</span>
+          </button>
+        ) : null}
       </div>
     </aside>
   );

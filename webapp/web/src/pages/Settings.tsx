@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Settings as SettingsModel, Status } from "../types";
 import { Segmented, Spinner, Toggle } from "../components/ui";
-import { ExternalLinkIcon, LockIcon, PrinterIcon, SettingsIcon, ShareIcon, ShieldIcon } from "../components/Icons";
+import { ExternalLinkIcon, LockIcon, LogoutIcon, PrinterIcon, SettingsIcon, ShareIcon, ShieldIcon } from "../components/Icons";
 import { ACCENTS, THEME_MODES, type ThemePrefs } from "../theme";
 
 type Notify = (text: string, kind?: "info" | "success" | "error") => void;
@@ -20,12 +20,14 @@ export function Settings({
   refreshStatus,
   theme,
   onThemeChange,
+  onLogout,
 }: {
   status: Status | null;
   notify: Notify;
   refreshStatus: () => void;
   theme: ThemePrefs;
   onThemeChange: (prefs: ThemePrefs) => void;
+  onLogout: () => void;
 }) {
   const [settings, setSettings] = useState<SettingsModel>(DEFAULT_SETTINGS);
   const [password, setPassword] = useState("");
@@ -216,6 +218,28 @@ export function Settings({
           ) : null}
         </div>
       </div>
+
+      {settings.authRequired ? (
+        <>
+          <div className="section-title">
+            <LockIcon size={13} /> Session
+          </div>
+          <div className="card">
+            <div className="setting-row">
+              <div className="setting-text">
+                <div className="setting-title">Signed in as admin</div>
+                <div className="setting-desc">
+                  Sign out to require the admin password again on this browser. Other devices keep printing.
+                </div>
+              </div>
+              <button className="btn" onClick={onLogout}>
+                <LogoutIcon size={15} />
+                Sign out
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <div className="section-title">
         <PrinterIcon size={13} /> About

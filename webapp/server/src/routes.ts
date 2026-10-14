@@ -185,7 +185,13 @@ export function registerRoutes(app: FastifyInstance): void {
 
   app.post("/api/printers/:queue/ppd", async (request, reply) => {
     const queue = param(request, "queue");
-    const upload = await request.file({ limits: { fileSize: 20 * 1024 * 1024 } });
+    let upload: Awaited<ReturnType<typeof request.file>>;
+    try {
+      upload = await request.file({ limits: { fileSize: 20 * 1024 * 1024 } });
+    } catch (error) {
+      reply.code(400);
+      return { error: errorMessage(error) };
+    }
     if (!upload) {
       reply.code(400);
       return { error: "No PPD was uploaded" };
@@ -253,7 +259,13 @@ export function registerRoutes(app: FastifyInstance): void {
 
   app.post("/api/printers/:queue/print", async (request, reply) => {
     const queue = param(request, "queue");
-    const upload = await request.file({ limits: { fileSize: 100 * 1024 * 1024 } });
+    let upload: Awaited<ReturnType<typeof request.file>>;
+    try {
+      upload = await request.file({ limits: { fileSize: 100 * 1024 * 1024 } });
+    } catch (error) {
+      reply.code(400);
+      return { error: errorMessage(error) };
+    }
     if (!upload) {
       reply.code(400);
       return { error: "No file was uploaded" };

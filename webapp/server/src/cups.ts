@@ -791,10 +791,16 @@ let lastLpinfoScan = 0;
 let scanInFlight: Promise<void> | null = null;
 let lpinfoTimer: NodeJS.Timeout | null = null;
 let sweepTimer: NodeJS.Timeout | null = null;
-let mdnsChildren: ChildProcess[] = [];
+let mdnsChildren = new Map<string, ChildProcess>();
 let stopping = false;
 /** Summary of the last subnet sweep, for diagnostics. */
 let lastSweep = "(not run yet)";
+/** The most recent discovery/browser failure, surfaced in Diagnostics. */
+let discoveryError = "(none)";
+/** Restart backoff for a failing avahi-browse, so a broken binary cannot hot-loop. */
+const MDNS_RESTART_MIN_MS = 3000;
+const MDNS_RESTART_MAX_MS = 60_000;
+let mdnsRestartDelay = MDNS_RESTART_MIN_MS;
 
 function rememberDevice(device: DeviceView): void {
   if (!device.uri || !device.uri.includes("://")) return;
@@ -876,35 +882,58 @@ async function scanAll(): Promise<void> {
 /**
  * Keeps `avahi-browse` running and folds each resolved service into the cache
  * the instant mDNS announces it, so a printer appears without waiting for a
- * timer. The process is restarted if it ever exits.
+ * timer. Each service type is restarted independently (with backoff) if it
+ * ever exits, and a spawn failure is recorded for Diagnostics instead of being
+ * swallowed — an empty Add-printer list should always have a visible cause.
  */
+const MDNS_BROWSE_TYPES: Array<{ type: string; secure: boolean }> = [
+  { type: "_ipp._tcp", secure: false },
+  { type: "_ipps._tcp", secure: true },
+];
+
 function startMdnsBrowser(): void {
-  if (stopping || mdnsChildren.length > 0) return;
-  for (const { type, secure } of [
-    { type: "_ipp._tcp", secure: false },
-    { type: "_ipps._tcp", secure: true },
-  ]) {
-    const child = spawn("avahi-browse", ["-rp", type], { stdio: ["ignore", "pipe", "ignore"] });
-    let buffer = "";
-    child.stdout?.on("data", (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        const device = parseAvahiLine(line, secure);
-        if (device) rememberDevice(device);
-      }
-    });
-    child.on("exit", () => {
-      mdnsChildren = mdnsChildren.filter((candidate) => candidate !== child);
-      if (!stopping) {
-        const restart = setTimeout(() => startMdnsBrowser(), 3000);
-        restart.unref();
-      }
-    });
-    child.on("error", () => undefined);
-    mdnsChildren.push(child);
+  if (stopping) return;
+  for (const { type, secure } of MDNS_BROWSE_TYPES) {
+    if (!mdnsChildren.has(type)) spawnMdnsBrowser(type, secure);
   }
+}
+
+function spawnMdnsBrowser(type: string, secure: boolean): void {
+  const child = spawn("avahi-browse", ["-rp", type], { stdio: ["ignore", "pipe", "ignore"] });
+  mdnsChildren.set(type, child);
+  let buffer = "";
+  child.stdout?.on("data", (chunk: Buffer) => {
+    buffer += chunk.toString();
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const device = parseAvahiLine(line, secure);
+      if (device) {
+        rememberDevice(device);
+        // Healthy traffic: reset the backoff for the next failure.
+        mdnsRestartDelay = MDNS_RESTART_MIN_MS;
+        discoveryError = "(none)";
+      }
+    }
+  });
+  child.on("error", (error) => {
+    discoveryError = `avahi-browse ${type} failed to start: ${error.message}`;
+    log.warn(discoveryError);
+  });
+  child.on("exit", (code, signal) => {
+    mdnsChildren.delete(type);
+    if (stopping) return;
+    if (code !== 0 && code !== null) {
+      discoveryError = `avahi-browse ${type} exited with code ${code}${signal ? ` (${signal})` : ""}`;
+      log.warn(discoveryError);
+    }
+    const delay = mdnsRestartDelay;
+    mdnsRestartDelay = Math.min(mdnsRestartDelay * 2, MDNS_RESTART_MAX_MS);
+    const restart = setTimeout(() => {
+      if (!stopping) spawnMdnsBrowser(type, secure);
+    }, delay);
+    restart.unref();
+  });
 }
 
 /** Starts continuous discovery: a streaming mDNS browse plus periodic CUPS scans. */
@@ -929,8 +958,8 @@ export function startDiscovery(): void {
 /** Stops continuous discovery (called on shutdown). */
 export function stopDiscovery(): void {
   stopping = true;
-  for (const child of mdnsChildren) child.kill("SIGTERM");
-  mdnsChildren = [];
+  for (const child of mdnsChildren.values()) child.kill("SIGTERM");
+  mdnsChildren.clear();
   if (lpinfoTimer) {
     clearInterval(lpinfoTimer);
     lpinfoTimer = null;
@@ -1055,6 +1084,7 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
     discovered,
     formats,
     sweep: lastSweep,
+    discoveryError,
     queues,
     printers,
     jobs,

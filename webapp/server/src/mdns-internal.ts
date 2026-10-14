@@ -162,10 +162,15 @@ export class MdnsAdvertiser {
     return Buffer.concat([header, ...answers, ...additionals]);
   }
 
-  private announce(): void {
+  private announceTo(target?: { address: string; port: number }): void {
     if (!this.socket || this.services.length === 0) return;
     const packet = this.buildPacket();
-    this.socket.send(packet, MDNS_PORT, MDNS_ADDRESS, (error) => {
+    // A stub resolver (an ephemeral source port, or a QU query) expects a
+    // unicast reply; anything from port 5353 gets the standard multicast one.
+    const unicast = target !== undefined && target.port !== MDNS_PORT;
+    const address = unicast ? target!.address : MDNS_ADDRESS;
+    const port = unicast ? target!.port : MDNS_PORT;
+    this.socket.send(packet, port, address, (error) => {
       if (error) log.debug(`mDNS announce failed: ${error.message}`);
     });
   }
@@ -173,7 +178,7 @@ export class MdnsAdvertiser {
   /** Replaces the advertised set and announces it immediately. */
   update(services: AdvertisedService[]): void {
     this.services = services;
-    this.announce();
+    this.announceTo();
   }
 
   start(): void {
@@ -187,12 +192,12 @@ export class MdnsAdvertiser {
       this.bindError = error.message;
       log.warn(`mDNS socket error: ${error.message}`);
     });
-    socket.on("message", (message: Buffer) => {
+    socket.on("message", (message: Buffer, rinfo: dgram.RemoteInfo) => {
       try {
         const questions = readQuestions(message);
         if (questions.length === 0) return;
         const targets = this.targets();
-        if (questions.some((name) => targets.has(name))) this.announce();
+        if (questions.some((name) => targets.has(name))) this.announceTo(rinfo);
       } catch {
         // Ignore malformed packets.
       }
@@ -203,10 +208,10 @@ export class MdnsAdvertiser {
       } catch (error) {
         log.warn(`mDNS could not join ${MDNS_ADDRESS}: ${(error as Error).message}`);
       }
-      this.announce();
+      this.announceTo();
     });
     this.socket = socket;
-    this.timer = setInterval(() => this.announce(), ANNOUNCE_INTERVAL_MS);
+    this.timer = setInterval(() => this.announceTo(), ANNOUNCE_INTERVAL_MS);
     this.timer.unref();
     log.info(`mDNS advertiser started on ${this.ip} (${this.host}.local)`);
   }

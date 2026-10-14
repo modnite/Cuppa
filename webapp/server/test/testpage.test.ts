@@ -48,8 +48,11 @@ test("generateThermalTestLabel uses the PCL driver for a pcl queue", () => {
   assert.ok(text.includes(queue));
 });
 
-test("generateThermalTestLabel falls back to the TSPL diagnostic label for a tspl queue", () => {
-  const bytes = generateThermalTestLabel(defaultThermalConfig({ dialect: "tspl" }), queue);
-  assert.deepEqual([...bytes.subarray(0, 4)], [0x7e, 0x40, 0x0d, 0x0a]);
-  assert.ok(bytes.toString("latin1").endsWith("PRINT 1,1\n"));
+test("generateThermalTestLabel refuses to draw a TSPL label when the page cannot be rasterized", () => {
+  // A drawn TSPL TEXT label is silently ignored by the Rollo, so the generator
+  // must fail loudly rather than report a test print that never came out.
+  assert.throws(
+    () => generateThermalTestLabel(defaultThermalConfig({ dialect: "tspl" }), queue),
+    /Could not rasterize a test page/
+  );
 });

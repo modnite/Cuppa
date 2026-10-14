@@ -8,7 +8,7 @@ import { EscPosDriver } from "./drivers/escpos.js";
 import { PclDriver } from "./drivers/pcl.js";
 import { ZplDriver } from "./drivers/zpl.js";
 import { parsePgm, type GrayImage } from "./raster.js";
-import { generateTsplTestLabel, tsplFromImage } from "./tspl.js";
+import { tsplFromImage } from "./tspl.js";
 
 /**
  * The Rollo X1038 (and the Xprinter/Munbyn/Phomemo rebrands, IEEE-1284 id
@@ -69,17 +69,21 @@ export function generateThermalTestLabel(config: ThermalConfig, queue: string): 
     case "tspl":
     default: {
       const image = rasterizeTestPage(config);
-      if (image) {
-        return tsplFromImage(image, {
-          density: config.density,
-          speed: config.speed,
-          gapMm: config.gapMm,
-          ditherMode: config.dither,
-          invertPolarity: !config.invertPolarity,
-        });
+      if (!image) {
+        // A drawn TSPL TEXT label is accepted and then silently ignored by the
+        // Rollo X1038 (and the XPP-family rebrands), so "Test print" would
+        // report success while nothing came out. Fail loudly instead.
+        throw new Error(
+          `Could not rasterize a test page for ${queue} (is ${TEST_PAGE} present, with pdftoppm installed?). A drawn TSPL label would be ignored by the printer.`
+        );
       }
-      // Last resort when the test page or pdftoppm is unavailable.
-      return generateTsplTestLabel(queue, "CUPS", "Cuppa Web");
+      return tsplFromImage(image, {
+        density: config.density,
+        speed: config.speed,
+        gapMm: config.gapMm,
+        ditherMode: config.dither,
+        invertPolarity: !config.invertPolarity,
+      });
     }
   }
 }
