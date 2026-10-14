@@ -68,7 +68,7 @@
   --accent-hover: #4fd4b8;
   --accent-soft: rgba(79, 212, 184, 0.16);
   --accent-text: #04241d;
-  --danger: #ff453a;
+  --danger: #ff6961;
   --danger-soft: rgba(255, 69, 58, 0.16);
   --success: #30d158;
   --success-soft: rgba(48, 209, 88, 0.16);
@@ -279,7 +279,8 @@ a:hover {
 }
 
 .nav-item.active {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
+  background-color: var(--accent);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
   color: var(--accent-text);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06), 0 6px 16px var(--accent-soft);
 }
@@ -505,12 +506,14 @@ a:hover {
   height: 15px;
 }
 .btn-primary {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
+  background-color: var(--accent);
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
   color: var(--accent-text);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08), 0 6px 16px var(--accent-soft);
 }
 .btn-primary:hover {
-  background: linear-gradient(
+  background-color: var(--accent-hover);
+  background-image: linear-gradient(
     180deg,
     color-mix(in srgb, var(--accent-hover) 86%, #fff),
     var(--accent-hover)
@@ -1174,6 +1177,20 @@ a:hover {
 .mono {
   font-family: var(--mono);
   font-size: 12px;
+}
+
+/* Visually hidden but available to screen readers (e.g. a table's action
+   column header, which has no visible label). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ------------------------------------------------------------------ Diagnostics */

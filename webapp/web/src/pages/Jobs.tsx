@@ -116,13 +116,13 @@ export function Jobs({ notify }: { notify: Notify }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Job</th>
-                <th className="col-optional">Printer</th>
-                <th className="col-optional">User</th>
-                <th>Status</th>
-                <th className="right col-optional">Size</th>
-                <th className="col-optional">Submitted</th>
-                <th />
+                <th scope="col">Job</th>
+                <th scope="col" className="col-optional">Printer</th>
+                <th scope="col" className="col-optional">User</th>
+                <th scope="col">Status</th>
+                <th scope="col" className="right col-optional">Size</th>
+                <th scope="col" className="col-optional">Submitted</th>
+                <th scope="col"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>

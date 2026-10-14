@@ -149,6 +149,7 @@ export function Settings({
           </div>
           <Toggle
             checked={settings.advertiseEnabled}
+            label="Advertise on the network"
             onChange={(value) => void patch("advertiseEnabled", value)}
           />
         </div>
@@ -162,6 +163,7 @@ export function Settings({
           </div>
           <Toggle
             checked={settings.airprintCompat}
+            label="AirPrint compatibility"
             onChange={(value) => void patch("airprintCompat", value)}
           />
         </div>
@@ -175,6 +177,7 @@ export function Settings({
           </div>
           <Toggle
             checked={settings.tlsEnabled}
+            label="Encrypted printing (IPPS)"
             onChange={(value) => void patch("tlsEnabled", value)}
           />
         </div>

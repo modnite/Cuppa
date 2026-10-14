@@ -93,6 +93,16 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- Accessibility is 100 (Lighthouse) on every page, in the dark theme:
+  - the Jobs table's cells have real column headers (`scope="col"`, plus a
+    visually-hidden "Actions" header for the last column);
+  - the dark-theme danger red is lightened to `#ff6961` so the Cancel button and
+    the canceled pill meet WCAG AA (they were 3.8:1);
+  - gradient surfaces (the active nav tab, primary buttons) now set a real
+    `background-color` as well as the gradient, so their text contrast is
+    computed against the accent instead of the page behind them;
+  - the Settings toggles have accessible names and tooltips (they were
+    icon-only with no name).
 - The boot and sign-in screens now use a `<main>` landmark, so the page always
   has one. Lighthouse now reports 100 for accessibility, best practices and
   SEO, on the boot screen as well as the loaded app.
