@@ -130,6 +130,22 @@ function ProbeCard({ probe }: { probe: NetworkProbe }) {
               ))}
             </div>
           ) : null}
+          {probe.ipp.formatsSupported.length > 0 || probe.ipp.ippVersions.length > 0 ? (
+            // What a strict client (Android's default print service, Mopria)
+            // checks before it will list a printer. Compare the formats here
+            // with the `pdl` Cuppa advertises in the Bonjour section.
+            <div className="small muted" style={{ marginTop: 6, lineHeight: 1.7 }}>
+              <div>
+                <strong>Formats:</strong> <span className="mono">{probe.ipp.formatsSupported.join(", ") || "—"}</span>
+              </div>
+              <div>
+                <strong>URF:</strong> <span className="mono">{probe.ipp.urfSupported.join(", ") || "none advertised"}</span>
+              </div>
+              <div>
+                <strong>IPP:</strong> <span className="mono">{probe.ipp.ippVersions.join(", ") || "—"}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : probe.ipp ? (
         <div className="small muted" style={{ marginTop: 4 }}>

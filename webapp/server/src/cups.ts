@@ -1281,6 +1281,14 @@ export interface NetworkProbe {
     stateLabel: string;
     stateReasons: string[];
     stateMessage: string;
+    /**
+     * The printer's own capabilities. These are what a strict client such as
+     * Android's default print service checks before it will list a printer, so
+     * they are reported next to the formats Cuppa advertises over Bonjour.
+     */
+    formatsSupported: string[];
+    urfSupported: string[];
+    ippVersions: string[];
     supplies: SupplyLevel[];
     error: string;
   } | null;
@@ -1393,6 +1401,9 @@ async function ippProbe(
               "marker-types",
               "printer-alert",
               "printer-alert-description",
+              "document-format-supported",
+              "urf-supported",
+              "ipp-versions-supported",
             ]),
           ]),
         ],
@@ -1432,6 +1443,15 @@ async function ippProbe(
           (value): value is string => typeof value === "string" && value !== "none"
         ),
         stateMessage: String(values(group, "printer-state-message")[0] ?? ""),
+        formatsSupported: values(group, "document-format-supported").filter(
+          (value): value is string => typeof value === "string"
+        ),
+        urfSupported: values(group, "urf-supported").filter(
+          (value): value is string => typeof value === "string"
+        ),
+        ippVersions: values(group, "ipp-versions-supported").filter(
+          (value): value is string => typeof value === "string"
+        ),
         supplies,
         error: "",
       };
@@ -1450,6 +1470,9 @@ async function ippProbe(
     stateLabel: "",
     stateReasons: [],
     stateMessage: "",
+    formatsSupported: [],
+    urfSupported: [],
+    ippVersions: [],
     supplies: [],
     error: lastError,
   };

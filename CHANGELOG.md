@@ -7,6 +7,11 @@ Notable changes to Cuppa, newest first. Loosely follows
 
 ### Added
 - The webapp has light/dark/system themes and a choice of accent colours.
+- The network printer probe in Diagnostics now also reports the printer's own
+  `document-format-supported`, `urf-supported` and `ipp-versions-supported` —
+  the attributes a strict client such as Android's default print service checks
+  before it will list a printer. Compare them with the `pdl` Cuppa advertises in
+  the Bonjour section.
 - **Stop / start accepting jobs** on a printer, in its "⋯" menu. The printer card
   already warned "Not accepting jobs" but there was no way to clear it, even
   though the API for it existed.

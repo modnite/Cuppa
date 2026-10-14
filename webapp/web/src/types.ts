@@ -133,6 +133,9 @@ export interface NetworkProbe {
     stateLabel: string;
     stateReasons: string[];
     stateMessage: string;
+    formatsSupported: string[];
+    urfSupported: string[];
+    ippVersions: string[];
     supplies: SupplyLevel[];
     error: string;
   } | null;
