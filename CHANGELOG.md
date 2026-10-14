@@ -105,6 +105,11 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- When Cuppa's own responder advertises on a host that runs Avahi, it now uses
+  the **host's own mDNS name** as its SRV target and leaves the A record to
+  Avahi. Some clients — Android's print service among them — fail to resolve the
+  private `<hostname>-cuppa.local` name, which is why Cuppa's printers appeared
+  on macOS but not on Android while the printers' own Bonjour entries did.
 - CUPS' error log is no longer flooded by a repeating `ippfind`/`driverless`
   discovery failure (CUPS' own Bonjour discovery needs a local Avahi socket,
   which Cuppa does not). The repeated lines collapse to one, and the CUPS device

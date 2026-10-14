@@ -60,6 +60,22 @@ if [ "$MODE" = "host" ]; then
     ln -sf /host-avahi/socket /run/avahi-daemon/socket
     echo "mDNS: linked the host's Avahi socket for CUPS' own discovery"
   fi
+  # The name the host's Avahi owns for this machine. Cuppa's own responder uses
+  # it as the SRV target when it has to fill in, so a client resolves the host's
+  # address through Avahi rather than through a name only Cuppa knows. Some
+  # clients — Android's print service among them — fail to resolve the latter.
+  HOST_MDNS=$(
+    DBUS_SYSTEM_BUS_ADDRESS="unix:path=$HOST_BUS" \
+      dbus-send --system --print-reply --dest=org.freedesktop.Avahi \
+        / org.freedesktop.Avahi.Server.GetHostNameFqdn 2>/dev/null \
+      | sed -n 's/.*string "\(.*\)"/\1/p' | head -1
+  )
+  case "$HOST_MDNS" in
+    *.local)
+      export CUPPA_HOST_MDNS_NAME="$HOST_MDNS"
+      echo "mDNS: the host's own name is $HOST_MDNS"
+      ;;
+  esac
   exec /usr/bin/supervisord -c /etc/cuppa/supervisord-host-avahi.conf
 fi
 

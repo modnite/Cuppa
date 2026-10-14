@@ -1,4 +1,5 @@
 import dgram from "node:dgram";
+import { ENV } from "./env.js";
 import { log } from "./logger.js";
 import { primaryIPv4, hostName } from "./network.js";
 
@@ -122,17 +123,42 @@ export function readQuestions(message: Buffer): Array<{ name: string; unicast: b
   return questions;
 }
 
+/**
+ * The SRV target to advertise, and whether Cuppa must publish the matching A
+ * record itself.
+ *
+ * When the host runs Avahi, its own name is used and Avahi owns the A record:
+ * publishing a second copy of it would make the two responders fight, and some
+ * clients only resolve a name the real responder answers for. With no host
+ * Avahi, Cuppa publishes a private name and its own address.
+ */
+export function advertisedHost(
+  containerHostName: string,
+  hostMdnsName: string
+): { host: string; publishAddress: boolean } {
+  const candidate = hostMdnsName.trim().toLowerCase();
+  if (candidate.endsWith(".local") && /^[a-z0-9][a-z0-9.-]*\.local$/.test(candidate)) {
+    return { host: candidate.replace(/\.local$/, ""), publishAddress: false };
+  }
+  const fallback = `${containerHostName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}-cuppa`;
+  return { host: fallback, publishAddress: true };
+}
+
 export class MdnsAdvertiser {
   private socket: dgram.Socket | null = null;
   private timer: NodeJS.Timeout | null = null;
   private services: AdvertisedService[] = [];
   private ip = "";
   private host = "";
+  private publishAddress = true;
   private bindError = "";
 
   /** Records every service Cuppa advertises, so queries can be answered. */
   private targets(): Set<string> {
-    const set = new Set<string>(["_services._dns-sd._udp.local", `${this.host}.local`]);
+    const set = new Set<string>(["_services._dns-sd._udp.local"]);
+    // Only claim the host name when Cuppa owns it; otherwise the host's Avahi
+    // answers for it and a second answer would be a conflict.
+    if (this.publishAddress) set.add(`${this.host}.local`);
     for (const service of this.services) {
       set.add(`${service.type}.local`);
       set.add(`${service.name}.${service.type}.local`.toLowerCase());
@@ -157,8 +183,12 @@ export class MdnsAdvertiser {
       answers.push(record(instance, TYPE_SRV, srvData(service.port, `${this.host}.local`), true));
       answers.push(record(instance, TYPE_TXT, encodeTxt(service.txt), true));
     }
-    additionals.push(record(`${this.host}.local`, TYPE_A, aData(this.ip), true));
-
+    // Only publish the address when Cuppa owns the name. When the host's Avahi
+    // owns it, a second copy of the A record would make the two responders
+    // fight over it.
+    if (this.publishAddress) {
+      additionals.push(record(`${this.host}.local`, TYPE_A, aData(this.ip), true));
+    }
     const header = Buffer.alloc(12);
     header.writeUInt16BE(0x8400, 2); // response, authoritative
     header.writeUInt16BE(answers.length, 6);
@@ -188,8 +218,11 @@ export class MdnsAdvertiser {
   start(): void {
     if (this.socket) return;
     this.ip = primaryIPv4();
-    // A hostname that is unlikely to collide with the host's own records.
-    this.host = `${hostName().toLowerCase().replace(/[^a-z0-9-]/g, "-")}-cuppa`;
+    // A hostname that is unlikely to collide with the host's own records, unless
+    // the host's Avahi owns a name we can borrow instead.
+    const chosen = advertisedHost(hostName(), ENV.hostMdnsName);
+    this.host = chosen.host;
+    this.publishAddress = chosen.publishAddress;
 
     const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
     socket.on("error", (error) => {
@@ -240,7 +273,10 @@ export class MdnsAdvertiser {
     if (!this.socket) return "(mDNS advertiser not started)";
     const lines: string[] = [];
     if (this.bindError) lines.push(`socket error: ${this.bindError}`);
-    lines.push(`advertising ${this.services.length} service(s) as ${this.host}.local (${this.ip})`);
+    lines.push(
+      `advertising ${this.services.length} service(s) as ${this.host}.local (${this.ip})` +
+        (this.publishAddress ? "" : " — the host's Avahi owns this name")
+    );
     for (const service of this.services) {
       const pdl = service.txt.find((entry) => entry.startsWith("pdl=")) ?? "";
       lines.push(`  ${service.name}  ${service.type}  port ${service.port}  ${pdl}`);

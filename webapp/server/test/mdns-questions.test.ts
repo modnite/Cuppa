@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readQuestions } from "../src/mdns-internal.js";
+import { advertisedHost, readQuestions } from "../src/mdns-internal.js";
 
 /**
  * Stub resolvers (Android's NsdManager among them) ask for a unicast answer by
@@ -44,4 +44,33 @@ test("readQuestions ignores responses and truncated packets", () => {
   response.writeUInt16BE(0x8400, 2);
   assert.deepEqual(readQuestions(response), []);
   assert.deepEqual(readQuestions(Buffer.alloc(4)), []);
+});
+
+test("advertisedHost borrows the host's Avahi name when it has one", () => {
+  // The host's Avahi owns this name and its address, so Cuppa must not publish
+  // a second copy of the A record.
+  assert.deepEqual(advertisedHost("66b5ba038d62", "dxp4800plus-b52.local"), {
+    host: "dxp4800plus-b52",
+    publishAddress: false,
+  });
+  assert.deepEqual(advertisedHost("66b5ba038d62", "  NAS.LOCAL "), {
+    host: "nas",
+    publishAddress: false,
+  });
+});
+
+test("advertisedHost falls back to a private name with no host Avahi", () => {
+  assert.deepEqual(advertisedHost("66B5BA038D62", ""), {
+    host: "66b5ba038d62-cuppa",
+    publishAddress: true,
+  });
+  // Anything that is not a plausible .local name is ignored rather than trusted.
+  assert.deepEqual(advertisedHost("box", "not a name"), {
+    host: "box-cuppa",
+    publishAddress: true,
+  });
+  assert.deepEqual(advertisedHost("box", "nas.local.evil"), {
+    host: "box-cuppa",
+    publishAddress: true,
+  });
 });

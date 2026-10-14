@@ -36,6 +36,14 @@ export const ENV = {
    * fall back to Cuppa's own responder if that fails), "host", or "internal".
    */
   mdnsMode: process.env.CUPPA_MDNS_MODE ?? "auto",
+  /**
+   * The name the host's own Avahi owns for this machine, e.g. `nas.local`. The
+   * entrypoint sets it in host mode. Cuppa's own responder advertises it as its
+   * SRV target when present, so a client resolves the host's address through
+   * Avahi instead of through a name only Cuppa knows — which some clients,
+   * Android's print service among them, fail to resolve.
+   */
+  hostMdnsName: process.env.CUPPA_HOST_MDNS_NAME ?? "",
   /** Set to "1" to log every command and IPP exchange. */
   debug: process.env.CUPPA_DEBUG === "1",
 } as const;
