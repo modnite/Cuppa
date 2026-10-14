@@ -957,7 +957,7 @@ a:hover {
   color: var(--text-tertiary);
   margin-bottom: 12px;
 }
-.empty h3 {
+.empty h2 {
   margin: 0 0 6px;
   color: var(--text);
   font-size: 17px;

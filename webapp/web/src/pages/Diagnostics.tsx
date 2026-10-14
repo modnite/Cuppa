@@ -12,6 +12,7 @@ import { EmptyState, Spinner, copyText } from "../components/ui";
 import {
   CheckIcon,
   CopyIcon,
+  DownloadIcon,
   InfoIcon,
   PrinterIcon,
   RefreshIcon,
@@ -251,6 +252,15 @@ export function Diagnostics({ notify }: { notify: Notify }) {
             {loading ? <Spinner /> : <RefreshIcon size={15} />}
             Refresh
           </button>
+          <a
+            className="btn"
+            href="/api/diagnostics/dump"
+            download
+            data-tooltip="Download Cuppa's log, the network probes and every section below as one text file"
+          >
+            <DownloadIcon size={15} />
+            Export logs
+          </a>
           {data ? <CopyIconButton value={formatAll(data)} tooltip="Copy all diagnostics" /> : null}
         </div>
       </div>

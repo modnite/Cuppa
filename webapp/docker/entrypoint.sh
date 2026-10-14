@@ -51,6 +51,15 @@ if [ "$MODE" = "host" ]; then
   echo "mDNS: using the host's Avahi (CUPPA_AVAHI_MODE=host)"
   export CUPPA_AVAHI_MODE=host
   export DBUS_SYSTEM_BUS_ADDRESS="unix:path=$HOST_BUS"
+  # CUPS' own Bonjour discovery (`ippfind`, run by its `driverless` device
+  # backend) looks for Avahi's client socket, not D-Bus. When the host's runtime
+  # directory is mounted, point it at the host's socket so those scans succeed
+  # instead of logging a failure on every one.
+  if [ -S /host-avahi/socket ]; then
+    mkdir -p /run/avahi-daemon
+    ln -sf /host-avahi/socket /run/avahi-daemon/socket
+    echo "mDNS: linked the host's Avahi socket for CUPS' own discovery"
+  fi
   exec /usr/bin/supervisord -c /etc/cuppa/supervisord-host-avahi.conf
 fi
 

@@ -68,6 +68,17 @@ RUN chmod +x /etc/cuppa/entrypoint.sh
 # large unpaced bulk writes, so it needs 1 KiB chunks with a short pause.
 RUN install -o root -g root -m 0755 /etc/cuppa/cuppa-usb.js /usr/lib/cups/backend/cuppa-usb
 
+# CUPS runs backends as an unprivileged user, and the distro ships several of
+# them mode 0744 (execute for root only), so they cannot be run at all — this is
+# what makes cuppa-usb's fallback to the stock `usb` backend fail with EACCES.
+# Make them executable like the rest already are.
+RUN chmod 0755 \
+      /usr/lib/cups/backend/usb \
+      /usr/lib/cups/backend/lpd \
+      /usr/lib/cups/backend/dnssd \
+      /usr/lib/cups/backend/mdns \
+      /usr/lib/cups/backend/serial
+
 # cupsd.conf replaces the distro default; avahi-daemon.conf likewise.
 RUN cp /etc/cuppa/cupsd.conf /etc/cups/cupsd.conf \
     && cp /etc/cuppa/avahi-daemon.conf /etc/avahi/avahi-daemon.conf \

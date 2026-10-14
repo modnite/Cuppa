@@ -221,6 +221,14 @@ export const UploadIcon = makeIcon(
   </>
 );
 
+export const DownloadIcon = makeIcon(
+  <>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="M12 3v12" />
+    <path d="m7 10 5 5 5-5" />
+  </>
+);
+
 export const MoreIcon = makeIcon(
   <>
     <circle cx="5" cy="12" r="1.6" />

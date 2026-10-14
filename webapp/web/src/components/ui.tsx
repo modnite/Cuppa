@@ -265,7 +265,7 @@ export function EmptyState({ icon, title, children }: { icon: ReactNode; title: 
   return (
     <div className="empty">
       {icon}
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       <div className="muted">{children}</div>
     </div>
   );

@@ -8,7 +8,7 @@ import path from "node:path";
 import { ENV } from "./env.js";
 import { advertisementStatus } from "./mdns.js";
 import { run, runOrThrow, runWithInput } from "./exec.js";
-import { log } from "./logger.js";
+import { log, recentLogLines } from "./logger.js";
 import {
   IPP_OP,
   IPP_TAG,
@@ -776,8 +776,11 @@ const CACHE_MS = 3000;
 const STICKY_MS = 300_000;
 /** Per-command timeout for a full scan. */
 const SCAN_TIMEOUT_MS = 6000;
-/** How often to re-scan CUPS for USB/socket devices. */
-const LPINFO_INTERVAL_MS = 8000;
+/** How often to re-scan CUPS for USB/socket devices. Each scan runs CUPS' own
+ *  device backends, and its `driverless` backend logs an ippfind failure when
+ *  there is no local Avahi socket, so this is deliberately not too eager; the
+ *  Add-printer dialog and Diagnostics can still ask for a fresh scan on demand. */
+const LPINFO_INTERVAL_MS = 30_000;
 /** How often to sweep the local subnet for printers whose mDNS is broken. */
 const SWEEP_INTERVAL_MS = 120_000;
 
@@ -1022,6 +1025,34 @@ export async function listDrivers(): Promise<DriverView[]> {
   return drivers;
 }
 
+/**
+ * CUPS' own device-discovery backend (`driverless`) runs `ippfind`, which needs
+ * a local Avahi socket. When Cuppa borrows the host's Avahi over D-Bus there is
+ * no such socket, so `ippfind` fails on every scan and CUPS logs the same two
+ * lines forever — which buries every real error. Collapse them to one line that
+ * says what happened.
+ */
+const BENIGN_DEVICED_LINE =
+  /ippfind \(PID \d+\) stopped with status 2|\(driverless\) stopped with status 2/;
+
+export function tidyCupsLog(text: string): string {
+  const kept: string[] = [];
+  let hidden = 0;
+  for (const line of text.split(/\r?\n/)) {
+    if (BENIGN_DEVICED_LINE.test(line)) {
+      hidden += 1;
+      continue;
+    }
+    kept.push(line);
+  }
+  if (hidden > 0) {
+    kept.push(
+      `(${hidden} benign ippfind/driverless discovery line(s) hidden — CUPS' own Bonjour discovery needs a local Avahi socket, which Cuppa does not need because it discovers printers itself.)`
+    );
+  }
+  return kept.join("\n");
+}
+
 /** Best-effort snapshot of CUPS and the backends, for troubleshooting. */
 export async function collectDiagnostics(): Promise<Record<string, string>> {
   const text = async (command: string, args: string[]): Promise<string> => {
@@ -1030,7 +1061,7 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
   };
   const errorLog = (() => {
     try {
-      return readFileSync("/var/log/cups/error_log", "utf8").split(/\r?\n/).slice(-200).join("\n");
+      return tidyCupsLog(readFileSync("/var/log/cups/error_log", "utf8").split(/\r?\n/).slice(-200).join("\n"));
     } catch {
       return "(no /var/log/cups/error_log)";
     }
@@ -1079,9 +1110,13 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
   // background browser and sweep keep it current, and a page load should not
   // wait seconds for a subnet scan.
   const discovered = (await discoverDevices(false)).map((device) => device.uri).join("\n");
-  const formats = (await listPrinters())
-    .map((printer) => `${printer.queue}: ${printer.formats.join(", ") || "(none)"}`)
-    .join("\n");
+  // Reading the queue list needs CUPS; if it is down, say so rather than
+  // failing the whole page — this is the page you open when something is wrong.
+  const formats = await listPrinters()
+    .then((printers) =>
+      printers.map((printer) => `${printer.queue}: ${printer.formats.join(", ") || "(none)"}`).join("\n")
+    )
+    .catch((error) => `(could not list printers: ${error instanceof Error ? error.message : String(error)})`);
   return {
     devices,
     discovered,
@@ -1103,6 +1138,66 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
     advertisements: advertisementStatus(),
     errorLog,
   };
+}
+
+/**
+ * One text file with everything needed to debug a deployment: Cuppa's own log
+ * (which is otherwise only on stdout), the live network probes, and every
+ * Diagnostics section. Served as a download from Diagnostics → "Export logs".
+ */
+export async function collectLogDump(): Promise<string> {
+  // A log dump must never fail: it is what you reach for when things are broken,
+  // so a failure in any one collector becomes a line in the file.
+  let sections: Record<string, string>;
+  try {
+    sections = await collectDiagnostics();
+  } catch (error) {
+    sections = { diagnostics: `(could not collect diagnostics: ${error instanceof Error ? error.message : String(error)})` };
+  }
+  let probes: NetworkProbe[] = [];
+  try {
+    probes = await networkDiagnostics();
+  } catch (error) {
+    probes = [];
+    sections = {
+      ...sections,
+      probes: `(could not probe the network: ${error instanceof Error ? error.message : String(error)})`,
+    };
+  }
+  const lines: string[] = [
+    "Cuppa log dump",
+    `generated: ${new Date().toISOString()}`,
+    `version: ${ENV.version}`,
+    `host: ${os.hostname()}`,
+    "",
+    "===== Cuppa server log (newest first) =====",
+  ];
+  const serverLog = recentLogLines();
+  lines.push(...(serverLog.length > 0 ? [...serverLog].reverse() : ["(no log lines captured)"]));
+
+  lines.push("", "===== Network probes =====");
+  if (probes.length === 0) lines.push("(no network queues)");
+  for (const probe of probes) {
+    lines.push(`${probe.label}  ${probe.deviceUri}`);
+    lines.push(`  tcp: ${probe.tcp.ok ? `ok ${probe.tcp.ms} ms` : `failed: ${probe.tcp.error}`}`);
+    if (probe.ipp) {
+      lines.push(
+        `  ipp: ${
+          probe.ipp.ok
+            ? `ok (${probe.ipp.stateLabel}${probe.ipp.makeAndModel ? `, ${probe.ipp.makeAndModel}` : ""})`
+            : `failed: ${probe.ipp.error}`
+        }`
+      );
+      if (probe.ipp.formatsSupported.length > 0) lines.push(`  formats: ${probe.ipp.formatsSupported.join(", ")}`);
+      if (probe.ipp.urfSupported.length > 0) lines.push(`  urf: ${probe.ipp.urfSupported.join(", ")}`);
+      if (probe.ipp.ippVersions.length > 0) lines.push(`  ipp-versions: ${probe.ipp.ippVersions.join(", ")}`);
+    }
+  }
+
+  for (const [key, value] of Object.entries(sections)) {
+    lines.push("", `===== ${key} =====`, value || "(empty)");
+  }
+  return lines.join("\n");
 }
 
 const PACED_USB_BACKEND = process.env.CUPPA_PACED_USB_BACKEND || "/usr/lib/cups/backend/cuppa-usb";

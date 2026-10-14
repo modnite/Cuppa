@@ -92,13 +92,22 @@ async function writeFully(handle, buffer) {
   }
 }
 
-/** Writes the whole job to the kernel usblp device, paced. */
+/** Writes the whole job to the kernel usblp device, paced. On failure the error
+ *  carries how many bytes the printer had already accepted. */
 async function writeKernelDevice(device, data) {
   const handle = await fs.promises.open(device, "w");
+  let written = 0;
   try {
     await sleep(START_DELAY_MS);
     for (let offset = 0; offset < data.length; offset += CHUNK_SIZE) {
-      await writeFully(handle, data.subarray(offset, offset + CHUNK_SIZE));
+      const slice = data.subarray(offset, offset + CHUNK_SIZE);
+      try {
+        await writeFully(handle, slice);
+      } catch (error) {
+        error.acceptedBytes = written;
+        throw error;
+      }
+      written += slice.length;
       await sleep(INTER_CHUNK_MS);
     }
   } finally {
@@ -175,15 +184,25 @@ function runLibusbBackend(data) {
   if (TRANSPORT === "usblp") {
     const device = process.env.CUPPA_USB_DEVICE || findLpDevice(serialFromUri(uri));
     if (device && fs.existsSync(device)) {
-      try {
-        await writeKernelDevice(device, data);
-        process.stderr.write(`DEBUG: cuppa-usb wrote ${data.length} bytes to ${device}\n`);
-        process.exit(0);
-      } catch (error) {
-        process.stderr.write(
-          `WARNING: cuppa-usb kernel write to ${device} failed (${error.message}); using libusb\n`
-        );
+      // A first write to usblp can fail with EIO while the printer is still
+      // finishing the previous job, so try once more — but only when the
+      // printer accepted nothing, so a label can never come out twice.
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          await writeKernelDevice(device, data);
+          process.stderr.write(`DEBUG: cuppa-usb wrote ${data.length} bytes to ${device}\n`);
+          process.exit(0);
+        } catch (error) {
+          const accepted = Number(error.acceptedBytes || 0);
+          process.stderr.write(
+            `WARNING: cuppa-usb kernel write to ${device} failed after ${accepted} byte(s) ` +
+              `(attempt ${attempt} of 2: ${error.message})\n`
+          );
+          if (accepted > 0 || attempt === 2) break;
+          await sleep(1500);
+        }
       }
+      process.stderr.write("WARNING: cuppa-usb falling back to libusb\n");
     } else {
       process.stderr.write("WARNING: cuppa-usb found no usblp device; using libusb\n");
     }

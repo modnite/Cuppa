@@ -104,18 +104,22 @@ function readName(buffer: Buffer, start: number): { name: string; next: number }
 }
 
 /** The question names in a query, or [] for a response/malformed packet. */
-function readQuestions(message: Buffer): string[] {
+export function readQuestions(message: Buffer): Array<{ name: string; unicast: boolean }> {
   if (message.length < 12) return [];
   if (message.readUInt16BE(2) & 0x8000) return [];
   const count = message.readUInt16BE(4);
   let offset = 12;
-  const names: string[] = [];
+  const questions: Array<{ name: string; unicast: boolean }> = [];
   for (let i = 0; i < count && offset < message.length; i++) {
     const { name, next } = readName(message, offset);
-    names.push(name);
+    // The top bit of QCLASS is the "unicast response requested" (QU) bit: the
+    // asker wants the answer sent straight back to it, not multicast. Stub
+    // resolvers — Android's NsdManager among them — set it.
+    const qclass = next + 2 <= message.length - 2 ? message.readUInt16BE(next + 2) : 0;
+    questions.push({ name, unicast: (qclass & 0x8000) !== 0 });
     offset = next + 4;
   }
-  return names;
+  return questions;
 }
 
 export class MdnsAdvertiser {
@@ -162,12 +166,12 @@ export class MdnsAdvertiser {
     return Buffer.concat([header, ...answers, ...additionals]);
   }
 
-  private announceTo(target?: { address: string; port: number }): void {
+  private announceTo(target?: { address: string; port: number }, forceUnicast = false): void {
     if (!this.socket || this.services.length === 0) return;
     const packet = this.buildPacket();
     // A stub resolver (an ephemeral source port, or a QU query) expects a
     // unicast reply; anything from port 5353 gets the standard multicast one.
-    const unicast = target !== undefined && target.port !== MDNS_PORT;
+    const unicast = forceUnicast || (target !== undefined && target.port !== MDNS_PORT);
     const address = unicast ? target!.address : MDNS_ADDRESS;
     const port = unicast ? target!.port : MDNS_PORT;
     this.socket.send(packet, port, address, (error) => {
@@ -197,7 +201,8 @@ export class MdnsAdvertiser {
         const questions = readQuestions(message);
         if (questions.length === 0) return;
         const targets = this.targets();
-        if (questions.some((name) => targets.has(name))) this.announceTo(rinfo);
+        const matched = questions.filter((question) => targets.has(question.name));
+        if (matched.length > 0) this.announceTo(rinfo, matched.some((question) => question.unicast));
       } catch {
         // Ignore malformed packets.
       }

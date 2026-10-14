@@ -250,7 +250,13 @@ export function syncAdvertisements(printers: PrinterView[], settings: CuppaSetti
 export function advertisementStatus(): string {
   const lines: string[] = [];
   if (usingInternal || ENV.avahiMode !== "host" || ENV.mdnsMode === "internal") {
-    lines.push(`mode: built-in responder`, mdnsAdvertiser.status());
+    lines.push(`mode: built-in responder`);
+    // Why we are not using the host's Avahi is the whole question when a
+    // printer is not discoverable, so it is shown even in this mode.
+    for (const [key, error] of publisherErrors) {
+      lines.push(`  host publish FAILED  ${key.replace("\u0000", "  ")}  ${error}`);
+    }
+    lines.push(mdnsAdvertiser.status());
   } else {
     lines.push(`mode: host Avahi (${hostPublishers.size} running)`);
     for (const key of hostPublishers.keys()) {

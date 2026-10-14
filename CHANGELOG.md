@@ -7,6 +7,10 @@ Notable changes to Cuppa, newest first. Loosely follows
 
 ### Added
 - The webapp has light/dark/system themes and a choice of accent colours.
+- **Export logs** in Diagnostics: one text file containing Cuppa's own log
+  (previously only on the container's stdout), the live network probes and every
+  Diagnostics section. It never fails — a collector that errors becomes a line
+  in the file.
 - The network printer probe in Diagnostics now also reports the printer's own
   `document-format-supported`, `urf-supported` and `ipp-versions-supported` —
   the attributes a strict client such as Android's default print service checks
@@ -101,6 +105,24 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- CUPS' error log is no longer flooded by a repeating `ippfind`/`driverless`
+  discovery failure (CUPS' own Bonjour discovery needs a local Avahi socket,
+  which Cuppa does not). The repeated lines collapse to one, and the CUPS device
+  scan runs every 30 s instead of every 8 s. The compose files now mount the
+  host's Avahi runtime directory, which makes those scans succeed outright.
+- Diagnostics no longer returns a 500 when CUPS is unreachable — which is
+  exactly when you open it.
+- The stock CUPS `usb` backend shipped mode 0744, so `cuppa-usb`'s fallback to
+  it always failed with `EACCES` and the queue ended up disabled. The backends
+  are now world-executable.
+- `cuppa-usb` retries a kernel `usblp` write once when the printer accepted
+  nothing (a first write can fail with EIO while the previous job finishes), and
+  never retries after bytes were accepted, so a label can never print twice.
+- The built-in mDNS responder now honours the unicast-response (QU) bit on
+  queries — the form Android's `NsdManager` uses.
+- Diagnostics now reports *why* publishing through the host's Avahi failed, even
+  after it has fallen back to the built-in responder.
+- Empty states use `<h2>` so the page's heading order is valid.
 - Accessibility is 100 (Lighthouse) on every page, in the dark theme:
   - the Jobs table's cells have real column headers (`scope="col"`, plus a
     visually-hidden "Actions" header for the last column);

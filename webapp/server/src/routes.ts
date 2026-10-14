@@ -10,6 +10,7 @@ import {
   addPrinter,
   cancelJob,
   collectDiagnostics,
+  collectLogDump,
   discoverDevices,
   installPpd,
   listDrivers,
@@ -290,6 +291,13 @@ export function registerRoutes(app: FastifyInstance): void {
   });
   app.get("/api/drivers", async () => ({ drivers: await listDrivers() }));
   app.get("/api/diagnostics", async () => collectDiagnostics());
+  app.get("/api/diagnostics/dump", async (_request, reply) => {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    reply
+      .header("Content-Type", "text/plain; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="cuppa-log-${stamp}.txt"`);
+    return await collectLogDump();
+  });
   app.get("/api/diagnostics/network", async () => ({ probes: await networkDiagnostics() }));
   app.post("/api/diagnostics/probe", async (request, reply) => {
     const body = (request.body ?? {}) as { uri?: string; label?: string };
