@@ -1075,7 +1075,10 @@ export async function collectDiagnostics(): Promise<Record<string, string>> {
       "echo '-- sockets --'; ls -l /run/dbus/system_bus_socket /host-dbus/system_bus_socket /run/avahi-daemon/socket 2>&1; echo; echo '-- _ipp._tcp --'; timeout 6 avahi-browse -rt _ipp._tcp 2>&1 | head -40 || true",
     ]),
   ]);
-  const discovered = (await discoverDevices(true)).map((device) => device.uri).join("\n");
+  // Read the warm discovery cache rather than forcing a fresh /24 sweep: the
+  // background browser and sweep keep it current, and a page load should not
+  // wait seconds for a subnet scan.
+  const discovered = (await discoverDevices(false)).map((device) => device.uri).join("\n");
   const formats = (await listPrinters())
     .map((printer) => `${printer.queue}: ${printer.formats.join(", ") || "(none)"}`)
     .join("\n");

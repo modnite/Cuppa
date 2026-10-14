@@ -102,6 +102,9 @@ Notable changes to Cuppa, newest first. Loosely follows
   X1038 accepts and then ignores.
 - A PPD upload or file print with a missing or non-multipart body now returns
   400 instead of surfacing as a 500.
+- Opening **Diagnostics** no longer forces a fresh `/24` subnet sweep and stalls
+  the page; it reads the warm discovery cache. The Add-printer dialog still
+  offers an explicit fresh scan.
 - The Bonjour TXT records now include `adminurl`, and Diagnostics → **Bonjour
   advertisements** lists the exact records being published so they can be
   compared with a real printer's.
