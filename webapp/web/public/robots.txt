@@ -1,0 +1,4 @@
+# Cuppa is a private, self-hosted print server admin panel. It should never be
+# indexed by a search engine, so ask crawlers to stay out entirely.
+User-agent: *
+Disallow: /

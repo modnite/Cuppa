@@ -24,7 +24,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <div className="login-wrap">
+    <main className="login-wrap">
       <form className="card login-card" onSubmit={submit}>
         <CuppaIcon size={72} radius={17} />
         <h1>Cuppa</h1>
@@ -45,6 +45,6 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
           Sign in
         </button>
       </form>
-    </div>
+    </main>
   );
 }

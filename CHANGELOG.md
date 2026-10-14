@@ -7,6 +7,8 @@ Notable changes to Cuppa, newest first. Loosely follows
 
 ### Added
 - The webapp has light/dark/system themes and a choice of accent colours.
+- A `robots.txt` and a `noindex` meta tag, so a private Cuppa instance is never
+  indexed by a search engine.
 - Cuppa now uses the host's Avahi when the NAS already runs one (OpenMediaVault,
   Synology), so printer discovery and advertising work there; on a host with no
   Avahi it still runs its own.
@@ -91,6 +93,9 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- The boot and sign-in screens now use a `<main>` landmark, so the page always
+  has one. Lighthouse now reports 100 for accessibility, best practices and
+  SEO, on the boot screen as well as the loaded app.
 - A discovered device's address no longer spills out of the **Add printer**
   dialog on a phone. The address and model now truncate with an ellipsis
   instead of forcing a horizontal scroll inside the dialog.
