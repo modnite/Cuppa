@@ -91,6 +91,11 @@ Notable changes to Cuppa, newest first. Loosely follows
 - The "Connect a device" how-to on the Dashboard (the macOS/iOS/Android steps).
 
 ### Fixed
+- The phone top bar's tab glyphs are centred. Icon-only tabs had kept the
+  sidebar's asymmetric padding and `width: 100%`, so the icons hugged the left
+  edge of each tab; each tab now takes an equal share and centres its glyph.
+  The icon-only bar also starts at 719 px instead of 640 px, so the labelled
+  bar never overflows into a hidden horizontal scroll.
 - Discovery failures are no longer invisible: an `avahi-browse` spawn or exit
   error is recorded and shown in Diagnostics → **Discovery errors**, and each
   service type restarts on its own with backoff instead of hot-looping every

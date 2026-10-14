@@ -1350,6 +1350,38 @@ a:hover {
   }
 }
 
+/* Below this width the five labelled tabs no longer fit on one row, so the top
+   bar goes icon-only (each tab keeps its aria-label) rather than hiding a tab
+   behind a horizontal scroll. Each tab takes an equal share and centres its
+   glyph. */
+@media (max-width: 719px) {
+  .sidebar {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .brand {
+    display: none;
+  }
+  .nav {
+    flex: 1;
+    gap: 2px;
+  }
+  .nav-item {
+    flex: 1 1 0;
+    width: auto;
+    justify-content: center;
+    padding: 10px 0;
+    gap: 0;
+  }
+  .nav-item span {
+    display: none;
+  }
+  .nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
 @media (max-width: 640px) {
   .main-inner {
     padding: 18px 14px 64px;
@@ -1378,31 +1410,6 @@ a:hover {
   }
   .toasts {
     bottom: 14px;
-  }
-  /* The top bar must fit five tabs on a phone. Drop the wordmark and use
-     icon-only tabs (each still has an aria-label), so nothing is off-screen. */
-  .sidebar {
-    padding: 6px 10px;
-    gap: 6px;
-  }
-  .brand {
-    display: none;
-  }
-  .nav {
-    flex: 1;
-    gap: 2px;
-    justify-content: space-between;
-  }
-  .nav-item {
-    padding: 9px 12px;
-    gap: 0;
-  }
-  .nav-item span {
-    display: none;
-  }
-  .nav-item svg {
-    width: 20px;
-    height: 20px;
   }
   /* Keep the primary action reachable: drop secondary columns rather than
      hiding Cancel behind a horizontal scroll. */
