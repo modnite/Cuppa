@@ -7,6 +7,9 @@ Notable changes to Cuppa, newest first. Loosely follows
 
 ### Added
 - The webapp has light/dark/system themes and a choice of accent colours.
+- **Stop / start accepting jobs** on a printer, in its "⋯" menu. The printer card
+  already warned "Not accepting jobs" but there was no way to clear it, even
+  though the API for it existed.
 - A `robots.txt` and a `noindex` meta tag, so a private Cuppa instance is never
   indexed by a search engine.
 - Cuppa now uses the host's Avahi when the NAS already runs one (OpenMediaVault,

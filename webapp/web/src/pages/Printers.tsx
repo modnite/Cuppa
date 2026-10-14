@@ -6,6 +6,7 @@ import { RenameDialog } from "../components/RenameDialog";
 import { ThermalSettingsDialog } from "../components/ThermalSettingsDialog";
 import { CopyButton, EmptyState, Menu, Modal, Spinner, StatusPill, Toggle, type MenuItem } from "../components/ui";
 import {
+  CheckIcon,
   FileIcon,
   PencilIcon,
   PlusIcon,
@@ -17,6 +18,7 @@ import {
   TrashIcon,
   UploadIcon,
   UsbIcon,
+  XIcon,
 } from "../components/Icons";
 
 type Notify = (text: string, kind?: "info" | "success" | "error") => void;
@@ -209,6 +211,18 @@ export function Printers({ notify }: { notify: Notify }) {
                           printer.queue,
                           () => api.setEnabled(printer.queue, !printer.enabled),
                           printer.enabled ? "Printer paused" : "Printer resumed"
+                        ),
+                    },
+                    {
+                      // The card already warns "Not accepting jobs"; this is the
+                      // control that clears it.
+                      label: printer.accepting ? "Stop accepting jobs" : "Start accepting jobs",
+                      icon: printer.accepting ? <XIcon size={15} /> : <CheckIcon size={15} />,
+                      onSelect: () =>
+                        void run(
+                          printer.queue,
+                          () => api.setAccepting(printer.queue, !printer.accepting),
+                          printer.accepting ? "Stopped accepting jobs" : "Accepting jobs again"
                         ),
                     },
                     { label: "Rename", icon: <PencilIcon size={15} />, onSelect: () => setRenaming(printer) },
